@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DavideCarvalho/adonis-context.git",
+    "url": "git+https://github.com/DavideCarvalho/adonis-agora-context.git",
     "directory": "packages/core"
   },
   "author": "Davi Carvalho <davi@goflip.ai>",
