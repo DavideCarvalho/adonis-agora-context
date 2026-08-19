@@ -13,7 +13,7 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 It is deliberately unglamorous. Most of the time you will not call it directly at all. You wire it once with `node ace configure`, your auth layer drops a `userRef` into it, and from then on the rest of the Agora ecosystem reads from it for free.
 
 <Callout type="info" title="Alpha">
-  This package is published as `0.4.0`. The API documented here reflects the current alpha. Pin a version and expect refinements before `1.0`.
+  The API is still settling: pin the version you install and expect refinements before the package reaches `1.0`.
 </Callout>
 
 ---
@@ -103,6 +103,8 @@ The store carries a handful of values the rest of the libraries care about, expo
 | A correlation id for the request | `Context.traceId()` | [diagnostics](/docs/diagnostics) / [durable](/docs/durable) — correlate logs, spans and workflows |
 
 Notice the pattern: **the context library never decides anything.** It does not authenticate, it does not pick a tenant, it does not log. Some other layer resolves those values and *sets* them; this library is the shared place they live so everyone else can *read* them.
+
+With [diagnostics](/docs/diagnostics) that reading is automatic: install both packages and every `agora:*` event any ecosystem library emits arrives stamped with the current request's trace id, without a line of code in your app — see [Getting Started](/docs/context/getting-started#diagnostics-events-get-the-trace-id-for-free).
 
 Consumer libraries don't even import `@adonis-agora/context` — they read a read-only accessor that this package publishes on a `globalThis` slot at import time, and **degrade cleanly when it is absent**. Adding `@adonis-agora/context` lights them up; removing it does not break them. See [Customization → swapping the accessor](/docs/context/customization#level-5--swapping-the-accessor).
 
