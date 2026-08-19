@@ -1,7 +1,7 @@
 {
   "name": "@adonis-agora/context",
   "version": "0.5.1",
-  "description": "Shared AsyncLocalStorage context for AdonisJS — carries user/tenant/traceId across the request and the Agora ecosystem.",
+  "description": "Shared AsyncLocalStorage context for AdonisJS \u2014 carries user/tenant/traceId across the request and the Agora ecosystem.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,6 +17,11 @@
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js",
       "default": "./dist/src/index.js"
+    },
+    "./lucid": {
+      "types": "./dist/src/lucid/tenant_connection.d.ts",
+      "import": "./dist/src/lucid/tenant_connection.js",
+      "default": "./dist/src/lucid/tenant_connection.js"
     },
     "./testing": {
       "types": "./dist/src/testing/index.d.ts",
@@ -39,7 +44,11 @@
       "default": "./dist/configure.js"
     }
   },
-  "files": ["dist/", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "//sideEffects": "NOT false: context.ts holds the module-level singleton (AsyncLocalStorage + cross-boundary config), define_config.ts holds the middleware's population-options holder, and accessor.ts / writer.ts publish the accessor (read) and writer (write) on Symbol.for() global slots AT IMPORT TIME (the ecosystem decoupling contracts other libs read/write). All are process-global state a bundler told sideEffects:false could tree-shake. Pure modules (index, traceparent, baggage, middleware, provider) stay tree-shakeable.",
   "sideEffects": [
     "**/context.js",

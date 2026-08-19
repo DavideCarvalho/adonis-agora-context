@@ -1,0 +1,110 @@
+---
+title: Database per Tenant
+description: Resolve the right Lucid connection from the tenant in context — fail-closed, so a request without a tenant never silently reads the default database.
+icon: DatabaseZap
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+The context already carries a `tenantId`. If your app keeps **one database per tenant**, that
+value is the only thing standing between a request and the right connection. This subpath
+turns it into one:
+
+```ts
+import { defineTenantConnections } from '@adonis-agora/context/lucid'
+
+export const tenancy = defineTenantConnections({
+  resolve: (tenantId) => `tenant_${tenantId}`,
+})
+```
+
+```ts
+// The connection name, to hand to a model query…
+await Invoice.query({ connection: tenancy.connectionName() })
+
+// …or the Lucid client directly.
+await tenancy.client(db).from('invoices').select('*')
+```
+
+<Callout type="info">
+  This lives in a subpath (`@adonis-agora/context/lucid`) on purpose: the core of this
+  library is deliberately database-free. `@adonisjs/lucid` stays an optional peer — the
+  helper never imports it, it takes your `db` as a parameter.
+</Callout>
+
+---
+
+## Fail-closed is the whole point
+
+Ask for a connection when there is **no tenant in context** and the helper throws
+`NoTenantInContextError`. It does not quietly fall back to the default connection.
+
+That is not pedantry. In a database-per-tenant app, "I don't know whose request this is,
+so I'll use the default database" is a cross-tenant leak wearing the costume of a graceful
+degradation. A loud error at the first untenanted request is strictly better than a silent
+read from the wrong database.
+
+The helper also resolves the name **before** it touches your `db`, so a tenant-less call
+never reaches `db.connection()` — because calling it with no argument is exactly the leak
+you are trying to avoid.
+
+If some code path in your app is legitimately tenant-less — a global job, a shared
+reference table — say so explicitly:
+
+```ts
+defineTenantConnections({
+  resolve: (tenantId) => `tenant_${tenantId}`,
+  sharedConnection: 'public', // only now does a missing tenant resolve
+})
+```
+
+---
+
+## Mapping tenants to connections
+
+Two ways, depending on whether the set of tenants is known at build time:
+
+```ts
+// Convention or registry lookup.
+defineTenantConnections({ resolve: (tenantId) => `tenant_${tenantId}` })
+
+// Static map — an unmapped tenant throws UnknownTenantConnectionError.
+defineTenantConnections({ connections: { acme: 'acme_db', globex: 'globex_db' } })
+```
+
+Both refuse to guess. An unknown tenant is an error, never the default connection.
+
+To resolve for a tenant other than the ambient one — a background job fanning out over
+several tenants, for instance — pass it explicitly:
+
+```ts
+tenancy.connectionName({ tenantId: 'globex' })
+```
+
+---
+
+## Where the tenant comes from
+
+Anything that writes `tenantId` into the context works. If you use AuthKit, it is already
+wired: the client's context bridge publishes the `org_id` claim as `tenantId` the moment a
+session resolves, so by the time your controller runs the tenant is in context.
+
+```
+login → org_id claim → context.tenantId → tenancy.connectionName() → Lucid connection
+```
+
+<Callout type="warn">
+  Pair this with AuthKit's `requireOrg` middleware on tenant-scoped routes. Otherwise an
+  authenticated user with no active organization reaches your controller with no tenant,
+  and every query throws `NoTenantInContextError` — correct, but a redirect to the org
+  picker is a much better experience than a 500.
+</Callout>
+
+---
+
+## What this does not do
+
+It resolves a connection. It does not create databases, run migrations across them, or
+register connections at runtime — those stay your app's decisions, and Lucid's
+`db.manager` already exposes them. Keeping the helper this small is what lets it be
+strict: it has exactly one job and no reason to ever guess.

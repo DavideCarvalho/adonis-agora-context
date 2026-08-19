@@ -1,7 +1,15 @@
 {
   "title": "Context",
-  "description": "A module-level AsyncLocalStorage for AdonisJS that carries user, tenant and traceId across every boundary — HTTP, queue, durable and ace.",
+  "description": "A module-level AsyncLocalStorage for AdonisJS that carries user, tenant and traceId across every boundary \u2014 HTTP, queue, durable and ace.",
   "icon": "Boxes",
   "root": true,
-  "pages": ["index", "getting-started", "the-store", "cross-process", "customization", "testing"]
+  "pages": [
+    "index",
+    "getting-started",
+    "the-store",
+    "cross-process",
+    "database-per-tenant",
+    "customization",
+    "testing"
+  ]
 }
