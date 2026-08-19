@@ -37,5 +37,7 @@ describe('ContextEnricher (type-level)', () => {
       .map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '));
 
     expect(diagnostics).toEqual([]);
-  });
+    // A cold program over the Node typings takes a couple of seconds, and more when the
+    // stub-typecheck spec is running its own tsc alongside — well past vitest's 5s default.
+  }, 60_000);
 });
