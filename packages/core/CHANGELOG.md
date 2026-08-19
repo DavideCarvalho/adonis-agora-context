@@ -1,5 +1,44 @@
 # @adonis-agora/context
 
+## 0.5.0
+
+### Minor Changes
+
+- [#21](https://github.com/DavideCarvalho/adonis-agora-context/pull/21) [`15248e7`](https://github.com/DavideCarvalho/adonis-agora-context/commit/15248e707e7db34044a3717e90468ea7d6db5472) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - `ContextEnricher` now accepts an enricher that mutates the store in place
+
+  The type declared a `Partial<ContextStore> | undefined` return, so the
+  mutate-in-place style the JSDoc, the published `config/context.ts` stub and the
+  docs all described did not actually compile — `(store) => { store.tenantId = 'x' }`
+  failed with TS2322. The return type is widened to `Partial<ContextStore> | void`,
+  so both styles work: return a partial and it is merged into the store, or write
+  onto `store` directly and return nothing. Enrichers that return a partial behave
+  exactly as before.
+
+  The config stub now documents both styles, and that the enricher's second
+  argument is the caller's request object typed as `unknown` (it also runs outside
+  HTTP, via `Context.runEnrichers`), so it has to be narrowed before use.
+
+### Patch Changes
+
+- [#22](https://github.com/DavideCarvalho/adonis-agora-context/pull/22) [`0d67dc4`](https://github.com/DavideCarvalho/adonis-agora-context/commit/0d67dc4a5fc80c57130a0eb7aa6ed55a1cebeedd) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Declare `engines.node` as a range instead of one exact version
+
+  The manifest pinned `"node": "v26.7.0"` — an exact version, not a range. npm reads
+  that as "this build of Node and no other", so **every** consumer not running that
+  exact version got an `EBADENGINE` warning on install, and anyone with
+  `engine-strict` enabled (or a package manager that treats engines as a hard gate)
+  failed the install outright. Nothing in the package justified it: the only runtime
+  dependencies on Node itself are `node:async_hooks` (`AsyncLocalStorage`, including
+  `enterWith`) and `node:crypto`'s `randomFillSync`, all stable long before Node 20.
+
+  It is now `">=20.6.0"` — the floor the documentation already stated and the one the
+  sibling packages declare. CI runs comfortably above it. Note that the floor an
+  application actually gets is whichever is higher between this and the peer
+  `@adonisjs/core`, which npm enforces from that package's own manifest; there is no
+  reason for this package to restate it.
+
+  A test now asserts that every published manifest in the workspace declares
+  `engines.node` as a lower-bounded range, so an exact pin cannot come back unnoticed.
+
 ## 0.4.0
 
 ### Minor Changes
