@@ -289,3 +289,102 @@ describe('P9 — deserialize guards a missing traceId from the carrier', () => {
     warn.mockRestore();
   });
 });
+
+describe('Context.runEnrichers (the non-HTTP flow: run/enterWith, then enrich)', () => {
+  afterEach(() => {
+    Context.resetConfig();
+  });
+
+  it('applies an enricher that only mutates the store in place', () => {
+    Context.configure({
+      enrichers: [
+        (store) => {
+          store.displayName = `tenant-${store.tenantId}`;
+        },
+      ],
+    });
+
+    Context.run({ traceId: 'x', tenantId: 'acme' }, () => {
+      Context.runEnrichers();
+      expect(Context.get()?.displayName).toBe('tenant-acme');
+    });
+  });
+
+  it('merges the partial a returning enricher hands back', () => {
+    Context.configure({
+      enrichers: [(store) => ({ displayName: `tenant-${store.tenantId}` })],
+    });
+
+    Context.run({ traceId: 'x', tenantId: 'acme' }, () => {
+      Context.runEnrichers();
+      expect(Context.get()?.displayName).toBe('tenant-acme');
+    });
+  });
+
+  it('runs mutating and returning enrichers side by side, in order', () => {
+    Context.configure({
+      enrichers: [
+        (store) => {
+          store.tenantId = 'from-mutation';
+        },
+        (store) => ({ displayName: `tenant-${store.tenantId}` }),
+      ],
+    });
+
+    Context.run({ traceId: 'x' }, () => {
+      Context.runEnrichers();
+      expect(Context.get()?.tenantId).toBe('from-mutation');
+      // The second enricher saw the field the first one mutated in place.
+      expect(Context.get()?.displayName).toBe('tenant-from-mutation');
+    });
+  });
+
+  it('forwards the caller-supplied request object as the second argument', () => {
+    const seen: unknown[] = [];
+    Context.configure({
+      enrichers: [
+        (store, req) => {
+          seen.push(req);
+          store.displayName = (req as { tenant: string }).tenant;
+        },
+      ],
+    });
+
+    Context.run({ traceId: 'x' }, () => {
+      Context.runEnrichers({ tenant: 'acme' });
+      expect(seen).toEqual([{ tenant: 'acme' }]);
+      expect(Context.get()?.displayName).toBe('acme');
+    });
+  });
+
+  it('isolates a throwing enricher from the ones after it', () => {
+    Context.configure({
+      enrichers: [
+        () => {
+          throw new Error('boom');
+        },
+        (store) => {
+          store.displayName = 'still-ran';
+        },
+      ],
+    });
+
+    Context.run({ traceId: 'x' }, () => {
+      expect(() => Context.runEnrichers()).not.toThrow();
+      expect(Context.get()?.displayName).toBe('still-ran');
+    });
+  });
+
+  it('is a no-op outside any context, and with no enrichers configured', () => {
+    const enricher = vi.fn(() => ({ displayName: 'never' }));
+    Context.configure({ enrichers: [enricher] });
+    expect(() => Context.runEnrichers()).not.toThrow();
+    expect(enricher).not.toHaveBeenCalled();
+
+    Context.resetConfig();
+    Context.run({ traceId: 'x' }, () => {
+      expect(() => Context.runEnrichers()).not.toThrow();
+      expect(Context.get()?.displayName).toBeUndefined();
+    });
+  });
+});

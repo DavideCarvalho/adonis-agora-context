@@ -37,10 +37,25 @@ export default defineConfig({
 
   /**
    * Eager enrichers run right after "initialize", to populate DERIVED store
-   * fields (for example a displayName computed from tenantId). Prefer
-   * Context.lazy() for values that are cheaper to compute on demand.
+   * fields (for example a displayName computed from tenantId). Each enricher
+   * either returns a Partial<ContextStore> that is merged into the store, or
+   * mutates the store in place and returns nothing -- both forms are supported.
+   * A throwing enricher is isolated: it never breaks the request nor the other
+   * enrichers. Prefer Context.lazy() for values that are cheaper to compute on
+   * demand.
+   *
+   * The second argument is the caller's request object, typed as unknown
+   * (enrichers also run outside HTTP, via Context.runEnrichers), so narrow it
+   * before reading from it.
    */
-  // enrichers: [],
+  // enrichers: [
+  //   (store) => ({ region: regionForTenant(store.tenantId) }),
+  //   (store, req) => {
+  //     const ctx = req as HttpContext | undefined
+  //     const locale = ctx?.request.header('accept-language')
+  //     if (locale) store.locale = locale
+  //   },
+  // ],
 
   // -- cross-boundary: queue jobs, durable execution, anything outside the request --
 

@@ -70,16 +70,27 @@ const als = new AsyncLocalStorage<ContextStore>();
 /**
  * An enricher: a function that populates derived values onto the active context.
  * Run eagerly by {@link Context.runEnrichers} (the middleware calls it right
- * after entering the context). May either return a `Partial<ContextStore>` that
- * is merged into the store, or mutate the passed `store` directly and return
- * nothing. The optional `req` is forwarded from the middleware so an enricher
- * can derive from request data. Errors thrown by one enricher are swallowed so
- * they never break the request or the other enrichers.
+ * after entering the context).
+ *
+ * Both styles are supported and can be mixed freely:
+ *
+ * - return a `Partial<ContextStore>`, which is merged into the store;
+ * - or mutate the passed `store` directly and return nothing.
+ *
+ * The optional `req` is whatever the caller forwarded — the AdonisJS
+ * `HttpContext` when the middleware runs the enrichers, and whatever was passed
+ * to `Context.runEnrichers(req)` otherwise. It is typed `unknown` because the
+ * store is also populated outside HTTP, so narrow it before use.
+ *
+ * Errors thrown by one enricher are swallowed so they never break the request or
+ * the other enrichers.
  */
-export type ContextEnricher = (
-  store: ContextStore,
-  req?: unknown,
-) => Partial<ContextStore> | undefined;
+// The `void` in the return union is load-bearing: it is what makes a mutate-in-place
+// enricher (a body that assigns onto `store` and returns nothing) assignable to this
+// type. Narrowing it back to `undefined` breaks that documented style with TS2322 —
+// see test/fixtures/enricher_types.ts, which type-checks every accepted shape.
+// biome-ignore lint/suspicious/noConfusingVoidType: see the note above.
+export type ContextEnricher = (store: ContextStore, req?: unknown) => Partial<ContextStore> | void;
 
 /**
  * Configures the cross-boundary behaviour of the singleton. Comes from
