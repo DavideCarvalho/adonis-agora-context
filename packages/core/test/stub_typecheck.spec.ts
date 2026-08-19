@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -63,11 +63,17 @@ describe('the published stub compiles in a consumer app (real @adonisjs types)',
      * `config_stub.spec.ts` guards the SOURCE stub; this guards what `build` actually copies into the
      * tarball.
      */
-    it('ships no empty .stub file in dist/', () => {
+    it('ships no empty or unrenderable .stub file in dist/', () => {
       const stubs = collectStubs(distRoot);
       expect(stubs.length).toBeGreaterThan(0);
       for (const stub of stubs) {
         expect(statSync(stub).size, `${stub} is empty`).toBeGreaterThan(0);
+
+        // Scoped to the BODY — the `{{{ … }}}` header is JavaScript, where a backtick is legal.
+        // Only the body becomes Tempura's template literal, and only there do these throw.
+        const body = readFileSync(stub, 'utf8').replace(/\{\{\{[\s\S]*?\}\}\}/, '');
+        expect(body, `${stub}: a backtick in the body makes configure throw`).not.toContain('`');
+        expect(body, `${stub}: a \${ } in the body makes configure throw`).not.toContain('${');
       }
     });
   }

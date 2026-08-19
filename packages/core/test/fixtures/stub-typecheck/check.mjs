@@ -30,18 +30,11 @@
  * Driven by `stub_typecheck.spec.ts`.
  */
 import { execFileSync } from 'node:child_process';
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { AppFactory } from '@adonisjs/core/factories/app';
 
 const pkgRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -49,25 +42,33 @@ const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
 const STUB = 'config/context.stub';
 
 /**
- * Render the stub the way `@adonisjs/application`'s `Stub` class does: strip the
- * `{{{ exports({ to: ... }) }}}` destination header and keep the body verbatim.
+ * Render the stub through the REAL AdonisJS stubs pipeline — the same `app.stubs.create().build()
+ * .prepare()` path `codemods.makeUsingStub` walks from `configure.ts`. The app root IS the scratch
+ * app, so `exports({ to: app.configPath('context.ts') })` resolves to the actual destination and the
+ * file lands exactly where `node ace configure` would put it.
  *
- * Deliberately strict — anything left unrendered is a hard failure rather than a silent pass. A stub
- * that grows a template construct this renderer does not model would otherwise reach `tsc` with
- * literal braces in it, which reads as a compile error nobody can explain, or worse, gets "fixed" by
- * loosening the check until it stops looking at anything.
+ * This used to be a regex that stripped the `{{{ … }}}` header and kept the rest. That is precisely
+ * the mistake that let a broken generator ship in a sibling package: Tempura compiles a stub body
+ * into a JavaScript template literal, so a single backtick or `${` in a doc comment throws at
+ * generation time — while a regex renderer sails past it and reports success. A gate that renders
+ * differently from the generator is not testing the generator.
  */
-function render(stub) {
-  const source = readFileSync(join(pkgRoot, 'stubs', stub), 'utf8');
-  if (source.trim() === '') throw new Error(`${stub} is empty — nothing to type-check`);
+async function render(stub, appRoot) {
+  const app = new AppFactory().create(pathToFileURL(`${appRoot}/`));
+  await app.init();
+  const stubs = await app.stubs.create();
+  const prepared = await (await stubs.build(stub, { source: join(pkgRoot, 'stubs') })).prepare({});
 
-  const out = source.replace(/\{\{\{[\s\S]*?\}\}\}\n/, '');
-  if (out === source)
-    throw new Error(`no {{{ exports() }}} header in ${stub} — render assumption broken`);
+  const { contents, attributes } = prepared;
+  if (!attributes.to)
+    throw new Error(`${stub} declares no destination — configure would write nothing`);
+  if (contents.trim() === '')
+    throw new Error(`${stub} rendered to nothing — configure would publish a blank file`);
 
-  const leftover = out.match(/\{\{.*?\}\}/);
+  const leftover = contents.match(/\{\{.*?\}\}/);
   if (leftover) throw new Error(`unrendered template syntax ${leftover[0]} left in ${stub}`);
-  return out;
+
+  return { contents, to: attributes.to };
 }
 
 /**
@@ -150,10 +151,21 @@ try {
   );
   linkDependencies(appRoot);
 
-  const rendered = render(STUB);
-  mkdirSync(join(appRoot, 'config'), { recursive: true });
-  writeFileSync(join(appRoot, 'config/context.ts'), rendered);
-  writeFileSync(join(appRoot, 'config/context.uncommented.ts'), uncomment(rendered));
+  // The real pipeline resolves `to` itself — the harness never guesses the destination.
+  let rendered;
+  try {
+    rendered = await render(STUB, appRoot);
+  } catch (error) {
+    // What a user sees from `node ace configure`. A backtick or `${` in the body ends Tempura's
+    // template literal, so the generator throws before writing anything.
+    console.error('stub render: FAILED — `node ace configure` would abort without writing a file');
+    console.error(error.message ?? error);
+    process.exit(1);
+  }
+  const { contents, to } = rendered;
+  mkdirSync(dirname(to), { recursive: true });
+  writeFileSync(to, contents);
+  writeFileSync(join(dirname(to), 'context.uncommented.ts'), uncomment(contents));
 
   /**
    * An AdonisJS app's own compiler options: NodeNext + strict. Both matter — NodeNext is what makes
@@ -175,7 +187,7 @@ try {
           noEmit: true,
           esModuleInterop: true,
         },
-        include: ['config/**/*.ts'],
+        include: ['**/*.ts'],
       },
       null,
       2,
