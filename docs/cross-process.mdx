@@ -207,7 +207,15 @@ Under the hood the trace id rides the **W3C `traceparent` hook that durable alre
 import { Context, toTraceparent } from '@adonis-agora/context'
 
 const engine = new WorkflowEngine({
-  traceparent: () => toTraceparent(Context.traceId()!, Context.get()?.traceparent),
+  // `store` is durable's own required dependency — whatever state store you
+  // already pass. Only the `traceparent` hook below concerns this package.
+  store,
+  traceparent: () => {
+    const traceId = Context.traceId()
+    // No active context (a run started outside a request) — no header to emit.
+    if (!traceId) return undefined
+    return toTraceparent(traceId, Context.get()?.traceparent)
+  },
 })
 ```
 

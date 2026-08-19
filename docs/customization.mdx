@@ -81,17 +81,23 @@ The consequence: the **resolved `traceId` and `requestId` always win**. A stray 
 
 For values *derived* from the store (a `displayName` from `tenantId`, a region from a header), use one of two mechanisms depending on cost:
 
-- **Eager — `enrichers`.** An array of `(store, ctx) => Partial<ContextStore> | void` functions the middleware runs right after entering the context (and after `initialize`). Each one sees the assembled store and may return a partial to merge, or mutate the store in place. A throwing enricher is **isolated** — it never breaks the request or the other enrichers.
+- **Eager — `enrichers`.** An array of `(store, req?: unknown) => Partial<ContextStore> | void` functions the middleware runs right after entering the context (and after `initialize`). Each one sees the assembled store and may either return a partial to merge or mutate the store in place — both styles work, and you can mix them in one array. A throwing enricher is **isolated**: it never breaks the request or the other enrichers.
 
   ```ts title="config/context.ts"
   export default defineConfig({
     enrichers: [
+      // Return a partial — it is merged into the store.
       (store) => ({ region: regionForTenant(store.tenantId) }),
+
+      // Or write onto the store directly and return nothing.
+      (store) => {
+        store.region = regionForTenant(store.tenantId)
+      },
     ],
   })
   ```
 
-  Because the provider also pushes enrichers onto the singleton, a non-HTTP entrypoint can run them too, after a `Context.run`/`enterWith`, via `Context.runEnrichers()`.
+  Because the provider also pushes enrichers onto the singleton, a non-HTTP entrypoint can run them too, after a `Context.run`/`enterWith`, via [`Context.runEnrichers()`](#running-enrichers-outside-http).
 
 - **Lazy — `Context.lazy`.** For values that are expensive or rarely needed, compute on first access and memoize onto the store, so subsequent reads this request are free:
 
@@ -100,6 +106,33 @@ For values *derived* from the store (a `displayName` from `tenantId`, a region f
   ```
 
   The factory runs at most once per store per key; if the field is already present, its value is returned and the factory is skipped. Returns `undefined` outside any context (nowhere to cache).
+
+### The second argument is `unknown`, not `HttpContext`
+
+Enrichers run on both sides of the HTTP boundary: the middleware passes the AdonisJS `HttpContext`, while `Context.runEnrichers(req)` passes whatever a queue worker or an ace command hands it (often nothing at all). The parameter is therefore typed **`unknown`**, and reading a header off it without narrowing first is a type error (`TS18046: 'req' is of type 'unknown'`).
+
+Narrow it with an explicit cast on the HTTP side, where you know what the middleware passed:
+
+```ts title="config/context.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+import { defineConfig } from '@adonis-agora/context'
+
+export default defineConfig({
+  enrichers: [
+    (store, req) => {
+      // The middleware passes the HttpContext; a non-HTTP caller may pass
+      // nothing, hence the `| undefined` in the cast.
+      const ctx = req as HttpContext | undefined
+      const region = ctx?.request.header('x-region')
+      if (region) {
+        store.region = region
+      }
+    },
+  ],
+})
+```
+
+An enricher written this way stays safe when the same config is used by a worker: `ctx` is simply `undefined` there, the header lookup is skipped, and the field stays unset.
 
 ---
 
@@ -118,6 +151,58 @@ await Context.run(
 ```
 
 Here `Context.run` is the right tool (not `enterWith`): you own a clean callback boundary, so the context is established for the duration of the work and torn down cleanly when it finishes. For cross-process jobs there is a dedicated helper, `Context.deserialize` — see [Cross-Process](/docs/context/cross-process).
+
+### Configuring the singleton without the provider
+
+`ContextProvider` reads `config/context.ts` at boot and hands the cross-boundary half of it to the singleton for you. A process that never boots the AdonisJS application — a bare worker script, a one-off Node entrypoint, a standalone consumer — has no provider, so the singleton keeps its defaults: the carrier is `traceId` + `tenantId` + `userRef`, baggage uses the plain field names, and no enrichers run. `Context.configure()` is the way to set it up by hand:
+
+```ts title="worker.ts"
+import { Context } from '@adonis-agora/context'
+
+// Once, at process start, before any work runs.
+Context.configure({
+  carrier: ['traceId', 'tenantId', 'userRef', 'locale'],
+  baggage: { tenantId: 'acme.tenant', userRef: false },
+  enrichers: [
+    (store) => {
+      store.region = regionForTenant(store.tenantId)
+    },
+  ],
+})
+```
+
+Two things to keep in mind:
+
+- **It reads only the cross-boundary keys** — `carrier`, `serialize`, `deserialize`, `baggage` and `enrichers`. The population hooks (`traceHeader`, `traceId`, `initialize`) are the HTTP middleware's, and passing them here has no effect; a worker establishes its own store with `Context.run` / `Context.deserialize` instead.
+- **The config is process-global and replaced wholesale.** Calling `configure` a second time with a different config warns, because the last call wins. `Context.resetConfig()` puts the singleton back to its defaults — the same reset the [testing](/docs/context/testing#carrier--serialize-config) page recommends between tests.
+
+Because the config file itself is a plain object, a worker that lives in the same repository can simply hand it the app's config instead of duplicating it:
+
+```ts title="worker.ts"
+import { Context } from '@adonis-agora/context'
+import contextConfig from '#config/context'
+
+Context.configure(contextConfig)
+```
+
+### Running enrichers outside HTTP
+
+Enrichers are configured centrally but they are *run* by whoever establishes the context. The middleware does it for HTTP requests; outside HTTP you call `Context.runEnrichers()` yourself, right after entering the store — so a worker derives exactly the same fields a request would:
+
+```ts title="app/jobs/rebuild_report_job.ts"
+import { Context, randomTraceId } from '@adonis-agora/context'
+
+await Context.run({ traceId: randomTraceId(), tenantId: 'acme' }, async () => {
+  Context.runEnrichers()   // derived fields are now on the store
+  await rebuildReport()
+})
+```
+
+It behaves the same way the middleware's pass does: enrichers run in order, each one sees what the previous ones wrote, a thrower is isolated from the rest, and returned partials are merged. It is a no-op — never a throw — when there is no active context or no enrichers are configured, so it is safe to call unconditionally. Anything you pass is forwarded as the enricher's second argument:
+
+```ts
+Context.runEnrichers(job) // arrives as the `req` parameter, typed `unknown`
+```
 
 <Callout type="info">
   If you want the context on *some* HTTP routes only, register the middleware on the **named** middleware stack and apply it per-route instead of the `server` stack — but the common (and configured-by-default) case is the server stack, so the context exists everywhere. The codemod wires the server stack for you.
@@ -194,9 +279,17 @@ interface ContextAccessor {
   traceId(): string | undefined
   tenantId(): string | undefined
   userRef(): UserRef | undefined
+  // `get` is overloaded — both forms are part of the contract.
   get(): ContextStore | undefined
+  get(key: string): unknown
 }
 ```
+
+<Callout type="warn" title="`get` is overloaded — implement both forms">
+  The keyed `get(key)` is not optional sugar. Consumers are split across the two forms: telescope and resilience call `get()` for the whole store, while authz calls `get('globalRoles')` to read a single field. An accessor that implements only the no-argument form still satisfies a structural check — the call `get('globalRoles')` compiles and runs — but the argument is ignored and the *whole store* comes back where a field was expected. Nothing throws; the consumer just reads a value it cannot make sense of. That is not hypothetical: it is exactly the shape mismatch that made authz resolve `[]` for every role check, so every permission silently failed closed.
+
+  If you replace the accessor, honour both forms: no argument returns the store, a key returns that field off the store.
+</Callout>
 
 The default implementation, `contextAccessor`, is a thin facade over the singleton `Context`, and it is published on that slot **at module load** — merely importing `@adonis-agora/context` (which the provider does) wires it. `CONTEXT_ACCESSOR` is the `symbol`, not a container binding.
 

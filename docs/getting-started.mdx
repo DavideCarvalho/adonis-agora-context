@@ -15,7 +15,7 @@ Getting `@adonis-agora/context` running is two steps: configure the package once
 ## Prerequisites
 
 - **Node.js 20.6+** (the store is built on `node:async_hooks`)
-- **AdonisJS 6** (`@adonisjs/core` `^6.12.0` is the only peer dependency)
+- **AdonisJS 7** (`@adonisjs/core` `^7.3.0` is the only peer dependency)
 - **TypeScript 5+**
 
 ---
@@ -69,6 +69,14 @@ export default defineConfig({
 ```
 
 Every key on `defineConfig` is covered in [Customization](/docs/context/customization).
+
+The package also exports `VERSION`, the release you actually have installed — handy when you stamp build metadata onto a log line or a health endpoint, or when you need to say precisely which version a bug report is about:
+
+```ts
+import { VERSION } from '@adonis-agora/context'
+
+logger.info({ context: VERSION }, 'boot')
+```
 
 ---
 
@@ -133,6 +141,35 @@ export default class StampContextMiddleware {
 </Callout>
 
 From this point on, anything downstream — services, Lucid hooks, the authz and filter libraries — can read `Context.userRef()` and `Context.tenantId()` with zero wiring.
+
+---
+
+## Diagnostics events get the trace id for free
+
+If [`@adonis-agora/diagnostics`](/docs/diagnostics) is installed alongside this package, there is no third step: **every `agora:*` diagnostic event and span already carries the current request's `traceId`**. You write no glue, register no hook, and touch no config — installing both packages is the entire integration.
+
+That covers events you never emit yourself. An authz decision, a durable step transition, a resilience circuit trip, an inertia render — each one arrives at your subscriber stamped with the trace id of the request that caused it:
+
+```ts title="start/diagnostics.ts"
+import { onDiagnostic } from '@adonis-agora/diagnostics'
+import logger from '@adonisjs/core/services/logger'
+
+onDiagnostic('authz', (event) => {
+  // `event.traceId` is the trace id of the request that triggered the check —
+  // filled in by the context package, not by this listener.
+  logger.info({ traceId: event.traceId, event: event.event }, event.payload)
+})
+```
+
+The payoff is that a single trace id joins **your** log lines to **every library's** events. Grep one id and you get the request, the authorization decision it made, the workflow it started, and the retry that fired three seconds later — across libraries that know nothing about each other.
+
+The behaviour around the edges is deliberately quiet:
+
+- **An explicit trace id wins.** Passing `traceId` at emit time overrides the ambient one, so a relayed or replayed event can carry the id it belongs to rather than the one that happened to be active.
+- **Outside a context, the field is simply absent.** Events emitted during boot, or from a worker that never entered a store, carry no `traceId` — nothing throws and nothing is logged about it.
+- **Either package alone still works.** Without diagnostics there is nothing to correlate; without this package diagnostics keeps emitting, with `traceId` left undefined. Neither one fails because the other is missing.
+
+To get the same correlation outside HTTP, give the worker or command a context first (see [Customization → non-HTTP entrypoints](/docs/context/customization#level-3--non-http-entrypoints)) — every event emitted inside that store picks the trace id up the same way.
 
 ---
 
