@@ -4,6 +4,11 @@
   "rangeStrategy": "pin",
   "packageRules": [
     {
+      "description": "engines.node is a SUPPORT RANGE, not a dependency to keep current. The global rangeStrategy:pin above rewrote it to a single exact version, which made every consumer on any other Node hit EBADENGINE (and fail outright under engine-strict). Leave it to humans.",
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    },
+    {
       "matchDepTypes": ["dependencies", "devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
       "automerge": true
