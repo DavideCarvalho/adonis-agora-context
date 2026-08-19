@@ -25,8 +25,10 @@ export default defineConfig({
   /**
    * Override how the trace id itself is produced for a request. When
    * provided, its return value wins over traceHeader / the random default.
+   * It must always return a string -- fall back to randomTraceId() (also
+   * exported by @adonis-agora/context) when your header is absent.
    */
-  // traceId: (ctx) => ctx.request.header('x-request-id'),
+  // traceId: (ctx) => ctx.request.header('x-request-id') ?? randomTraceId(),
 
   /**
    * Extra fields merged into the initial store at request start. Use this to
