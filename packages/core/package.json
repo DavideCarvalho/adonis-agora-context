@@ -70,7 +70,7 @@
   "devDependencies": {
     "@adonisjs/assembler": "8.4.0",
     "@adonisjs/core": "7.4.0",
-    "@types/node": "20.19.43",
+    "@types/node": "24.13.3",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   },
