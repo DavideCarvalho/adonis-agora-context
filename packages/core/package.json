@@ -71,7 +71,7 @@
     "@adonisjs/assembler": "8.5.0",
     "@adonisjs/core": "7.4.0",
     "@types/node": "20.19.43",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "3.2.7"
   },
   "engines": {
