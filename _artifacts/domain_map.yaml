@@ -1,0 +1,98 @@
+# Domain map for @adonis-agora/context (TanStack Intent agent skills).
+# Generated autonomously by mining README.md, DESIGN.md, docs/*.mdx and
+# packages/core/src. ONE domain map for the whole monorepo; skills are scoped to
+# the single client-facing package (@adonis-agora/context, packages/core).
+
+library: '@adonis-agora/context'
+description: >-
+  Shared AsyncLocalStorage context for AdonisJS 7 — a module-level ALS singleton
+  that carries userRef / tenantId / traceId across every boundary HttpContext
+  cannot cross: queue workers, durable remote steps, ace commands, Lucid hooks.
+  Wired once via `node ace configure` (provider + server-stack middleware +
+  config/context.ts), read anywhere through Context accessors, and propagated
+  cross-process via serialize()/deserialize(), W3C baggage, or automatically by
+  @adonis-agora/durable.
+
+versions:
+  '@adonis-agora/context': '0.6.0'
+
+primary_packages:
+  - name: '@adonis-agora/context'
+    dir: packages/core
+    role: Core package — module-level ALS store (Context), context_middleware,
+      context_provider, defineConfig, cross-process carrier + W3C baggage,
+      traceparent helpers, globalThis accessor/writer/scope slots, testing
+      helpers (@adonis-agora/context/testing), lucid tenant-connection helper
+      (@adonis-agora/context/lucid).
+
+domains:
+  - id: setup-store
+    title: Setup, config and reading the store
+    package: '@adonis-agora/context'
+    surface:
+      - 'node ace configure / node ace add @adonis-agora/context'
+      - 'defineConfig({ traceHeader?, traceId?, initialize?, enrichers? }) in config/context.ts'
+      - 'Context.traceId() / tenantId() / userRef() / get()'
+      - "Context.set(key, value) after auth; one-shot warn outside a context"
+      - 'ContextStore { traceId, requestId?, userRef?, tenantId?, traceparent? }; UserRef { type, id }'
+      - 'Context.run(store, fn) vs Context.enterWith(store)'
+      - 'module augmentation of interface ContextStore for custom typed fields'
+      - 'runWithContext(partial, fn) / enterContext(partial) from @adonis-agora/context/testing'
+      - 'defineTenantConnections({ resolve | connections, sharedConnection? }) from @adonis-agora/context/lucid'
+      - 'VERSION export'
+    key_facts:
+      - The middleware lands on the **server** stack on purpose (runs on every request before route resolution) and uses `enterWith`, not `run`, so the context survives the middleware return into async handlers.
+      - Accessors never throw outside a context — they return undefined; only `traceId` is non-optional on an active store.
+      - `Context.set()` outside a context is a silent no-op plus a **one-shot console.warn** (`resetSetWarning()` re-arms it); auth must stamp userRef/tenantId AFTER the middleware established the store.
+      - The store carries a UserRef `{ type, id }`, never the hydrated Lucid model — serializability + decoupling.
+      - Middleware precedence: initialize(ctx) merges FIRST, resolved traceId/requestId are written LAST and always win.
+      - Module augmentation declares fields but populates nothing — use initialize/enrichers/Context.set to fill them.
+
+  - id: cross-process
+    title: Cross-process propagation (the part that justifies the lib)
+    package: '@adonis-agora/context'
+    surface:
+      - 'Context.serialize(): ContextCarrier | undefined ({ traceId, tenantId?, userRef? })'
+      - 'Context.deserialize(carrier, fn)'
+      - 'Context.bind(fn) for setTimeout/setInterval/EventEmitter blind spots'
+      - 'Context.run for ace commands; randomTraceId()'
+      - 'Context.toBaggage() / fromBaggage(header, fn, { traceparent? })'
+      - 'encodeBaggage / decodeBaggage / encodeUserRef / decodeUserRef codecs'
+      - 'extractTraceparent / parseTraceparent / toTraceparent / ParsedTraceparent'
+      - 'carrier / serialize / deserialize / baggage keys of defineConfig'
+      - 'durable ctx.call auto-propagation via the WorkflowEngine traceparent hook'
+    key_facts:
+      - ALS dies at process boundaries by definition; the carrier is an explicit snapshot taken at dispatch time, not a live view.
+      - Raw @adonisjs/queue = two lines you write (__ctx: Context.serialize() on dispatch; Context.deserialize(payload.__ctx, …) in the handler). @adonis-agora/durable = zero lines (ctx.call carries/restores it).
+      - deserialize() tolerates a nullish carrier (runs fn with no active store instead of throwing) and synthesizes a fresh randomTraceId() (one-shot warn) when the carrier has none — preserving the traceId:string invariant.
+      - Baggage carries no trace id; fromBaggage seeds it from opts.traceparent else randomTraceId().
+      - store.traceparent (upstream parse) is process-local and deliberately NOT part of the default carrier; pass it to toTraceparent(traceId, upstream) to continue the incoming trace faithfully (span-id + sampled bit).
+
+  - id: customization-integration
+    title: Customization levels & ecosystem integration seams
+    package: '@adonis-agora/context'
+    surface:
+      - 'Level 1 — declare module augmentation fields (locale?, impersonatorId?, …)'
+      - 'Level 2 — traceHeader / traceId / initialize hooks + enrichers[] + Context.lazy(key, factory)'
+      - 'Level 3 — non-HTTP entrypoints: Context.run / enterWith, Context.configure(), Context.runEnrichers(req?)'
+      - 'Level 4 — carrier: [...] or full serialize/deserialize overrides; baggage key map (custom key or false)'
+      - 'Level 5 — CONTEXT_ACCESSOR globalThis slot (Symbol.for("@agora/context:accessor")), overloaded get()/get(key)'
+      - 'CONTEXT_SET writer slot (contextWriter.set(patch)) and CONTEXT_SCOPE slot (contextScope(snapshot, fn))'
+      - 'Context.resetConfig() between apps/tests'
+      - 'diagnostics bridge: every agora:* event is stamped with the ambient traceId for free'
+    key_facts:
+      - Carrier/baggage/enrichers config is PROCESS-GLOBAL, lives in a module-level singleton (never the IoC container), and each configure() REPLACES it wholesale — a second differing configure warns; resetConfig() clears it.
+      - app.container.swap(CONTEXT_ACCESSOR, …) does nothing — the accessor is a globalThis slot, not a container binding; overwrite the slot directly.
+      - A custom accessor MUST implement both get() forms: no-arg → whole store, keyed → field. A no-arg-only accessor still compiles but silently returns the whole store where consumers expect a field (authz resolved [] for every role check this way).
+      - Enrichers receive req as unknown — reading a header off it without narrowing is TS18046; cast to HttpContext | undefined on the HTTP side.
+      - runEnrichers() is safe to call unconditionally (no-op without a context or enrichers); throwing enrichers are isolated.
+      - Consumer libs read/write structurally via the three slots (accessor reads, set writes into an active store, scope establishes a store from a snapshot) and degrade to undefined/no-op when this package is absent.
+
+gaps:
+  # What a maintainer interview would have answered but could not be confirmed autonomously.
+  - No maintainer interview was possible (fully autonomous run); priorities/severities below are inferred from docs callouts and source comments, not confirmed.
+  - Whether the out-of-context Context.set() footgun (silent drop + one-shot warn) bites people in practice is assumed from its prominent doc Callout + dedicated resetSetWarning test hook, not from issue telemetry.
+  - No GitHub issues mined this session, so real-world AI-agent failure frequencies are inferred from docs warnings (set-outside-context, accessor get() shape mismatch, carrier-snapshot semantics), not observed reports.
+  - The durable integration is documented from the context side only (WorkflowEngine traceparent hook + @agora/context:scope slot); the authoritative contract lives in the adonis-durable repo and was not verified there.
+  - AuthKit org_id→tenantId bridging is referenced by database-per-tenant.mdx but lives in another repo; skill text cites it without verifying the bridge implementation.
+  - database-per-tenant.mdx (defineTenantConnections) is covered inside the setup/store skill rather than its own skill — right-sizing call for the 2–3-skill budget; flagged here for maintainer review.

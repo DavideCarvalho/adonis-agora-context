@@ -1,0 +1,24 @@
+# Skill tree for @adonis-agora/context. Flat structure (skills/<name>/SKILL.md), no router.
+# Every skill is type `core`. Each entry carries its owning `package`.
+
+structure: flat
+router: false
+
+skills:
+  - name: context-basics
+    type: core
+    package: "@adonis-agora/context"
+    path: packages/core/skills/context-basics/SKILL.md
+    summary: Install + node ace configure, server-stack middleware, defineConfig, Context accessors/set, ContextStore/UserRef, module augmentation, testing helpers, lucid tenant connections.
+
+  - name: context-cross-process
+    type: core
+    package: "@adonis-agora/context"
+    path: packages/core/skills/context-cross-process/SKILL.md
+    summary: serialize/deserialize carrier snapshots, the queue two-line pattern, ace Context.run, bind(), W3C baggage, traceparent helpers, durable auto-propagation.
+
+  - name: context-customization
+    type: core
+    package: "@adonis-agora/context"
+    path: packages/core/skills/context-customization/SKILL.md
+    summary: The five customization levels in defineConfig, enrichers/Context.lazy, process-global configure/resetConfig, and the CONTEXT_ACCESSOR / CONTEXT_SET / CONTEXT_SCOPE globalThis slots.
