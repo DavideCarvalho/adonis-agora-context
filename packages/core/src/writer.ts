@@ -1,4 +1,4 @@
-import { Context, type ContextStore, type UserRef, ensureTraceId } from './context.js';
+import { Context, type ContextStore, ensureTraceId, type UserRef } from './context.js';
 
 /**
  * The patch a {@link ContextWriter} merges into the active store. The known

@@ -10,7 +10,7 @@
  * the literal in lockstep with every release bump. It is idempotent and only
  * touches packages whose index.ts actually declares a VERSION const.
  */
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
