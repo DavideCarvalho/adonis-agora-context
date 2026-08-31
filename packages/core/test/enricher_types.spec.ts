@@ -1,6 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -14,30 +15,38 @@ import { describe, expect, it } from 'vitest';
  * them, so a normal spec cannot catch a regression here. This one runs the real
  * compiler over `fixtures/enricher_types.ts` — which assigns every documented
  * enricher shape to `ContextEnricher` — and asserts it type-checks clean.
+ *
+ * TypeScript 7 no longer ships the in-process compiler API (`ts.createProgram`) from the
+ * `typescript` package, so the check spawns the real `tsc` over a dedicated tsconfig
+ * (`fixtures/enricher_types.tsconfig.json`) that carries the same strict options.
  */
 
-const fixture = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/enricher_types.ts');
+const here = dirname(fileURLToPath(import.meta.url));
+const tsconfig = resolve(here, 'fixtures/enricher_types.tsconfig.json');
+const tsc = resolve(
+  dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+  'bin/tsc',
+);
 
 describe('ContextEnricher (type-level)', () => {
   it('accepts every documented enricher shape', () => {
-    const program = ts.createProgram([fixture], {
-      strict: true,
-      exactOptionalPropertyTypes: true,
-      noUncheckedIndexedAccess: true,
-      module: ts.ModuleKind.NodeNext,
-      moduleResolution: ts.ModuleResolutionKind.NodeNext,
-      target: ts.ScriptTarget.ES2022,
-      skipLibCheck: true,
-      noEmit: true,
-      types: ['node'],
-    });
-
-    const diagnostics = ts
-      .getPreEmitDiagnostics(program)
-      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '));
+    let diagnostics: string[] = [];
+    try {
+      execFileSync(process.execPath, [tsc, '-p', tsconfig], {
+        cwd: here,
+        stdio: 'pipe',
+        encoding: 'utf8',
+      });
+    } catch (error) {
+      const { stdout, stderr } = error as { stdout?: string; stderr?: string };
+      diagnostics = `${stdout ?? ''}${stderr ?? ''}`
+        .split('\n')
+        .filter((line) => /error TS\d+/.test(line));
+      if (diagnostics.length === 0) throw error;
+    }
 
     expect(diagnostics).toEqual([]);
-    // A cold program over the Node typings takes a couple of seconds, and more when the
+    // A cold tsc run over the Node typings takes a couple of seconds, and more when the
     // stub-typecheck spec is running its own tsc alongside — well past vitest's 5s default.
   }, 60_000);
 });

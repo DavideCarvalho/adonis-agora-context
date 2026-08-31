@@ -7,7 +7,7 @@ import {
   encodeUserRef,
   resolveBaggageKeys,
 } from './baggage.js';
-import { type ParsedTraceparent, extractTraceparent, randomTraceId } from './traceparent.js';
+import { extractTraceparent, type ParsedTraceparent, randomTraceId } from './traceparent.js';
 
 /**
  * Stable reference to a principal — `{ type, id }`, never the full user object.

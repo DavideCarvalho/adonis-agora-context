@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Context } from '../src/context.js';
-import { NoTenantInContextError, defineTenantConnections } from '../src/lucid/tenant_connection.js';
+import { defineTenantConnections, NoTenantInContextError } from '../src/lucid/tenant_connection.js';
 
 /** Roda `fn` dentro de um contexto com (ou sem) tenant. */
 function withTenant<T>(tenantId: string | undefined, fn: () => T): T {

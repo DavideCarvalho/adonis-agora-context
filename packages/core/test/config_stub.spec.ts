@@ -1,8 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppFactory } from '@adonisjs/core/factories/app';
-import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -31,6 +33,38 @@ import { describe, expect, it } from 'vitest';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const stubsRoot = resolve(packageRoot, 'stubs');
 const stubPath = resolve(stubsRoot, 'config/context.stub');
+
+const tsc = resolve(
+  dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+  'bin/tsc',
+);
+
+/**
+ * Syntax-only check of a TypeScript source. TypeScript 7 no longer ships `ts.transpileModule`
+ * from the `typescript` package, so this runs the real `tsc` over the text in a scratch dir and
+ * keeps only the syntactic diagnostics (TS1xxx) — unresolved imports and other semantic errors
+ * are out of scope here and covered by `stub_typecheck.spec.ts`.
+ */
+function syntaxErrors(source: string): string[] {
+  const dir = mkdtempSync(join(tmpdir(), 'context-stub-syntax-'));
+  try {
+    const file = join(dir, 'context.ts');
+    writeFileSync(file, source);
+    execFileSync(
+      process.execPath,
+      [tsc, '--noEmit', '--skipLibCheck', '--target', 'ES2022', '--module', 'ESNext', file],
+      { cwd: dir, stdio: 'pipe', encoding: 'utf8' },
+    );
+    return [];
+  } catch (error) {
+    const { stdout, stderr } = error as { stdout?: string; stderr?: string };
+    return `${stdout ?? ''}${stderr ?? ''}`
+      .split('\n')
+      .filter((line) => /error TS1\d{3}:/.test(line));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 /** Build + prepare the stub exactly as `codemods.makeUsingStub` does. */
 async function renderStub() {
@@ -90,14 +124,6 @@ describe('config/context.stub', () => {
   it('produces syntactically valid TypeScript', async () => {
     const { contents } = await renderStub();
 
-    const result = ts.transpileModule(contents, {
-      reportDiagnostics: true,
-      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-    });
-
-    const syntaxErrors = (result.diagnostics ?? []).filter(
-      (d) => d.category === ts.DiagnosticCategory.Error,
-    );
-    expect(syntaxErrors).toEqual([]);
-  });
+    expect(syntaxErrors(contents)).toEqual([]);
+  }, 30_000);
 });
