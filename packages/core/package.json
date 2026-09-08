@@ -73,7 +73,7 @@
     "@adonisjs/core": "^7.3.0"
   },
   "devDependencies": {
-    "@adonisjs/assembler": "8.5.0",
+    "@adonisjs/assembler": "8.5.1",
     "@adonisjs/core": "7.5.0",
     "@tanstack/intent": "^0.3.7",
     "@types/node": "26.4.0",
