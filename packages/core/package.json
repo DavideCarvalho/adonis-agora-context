@@ -75,10 +75,10 @@
   "devDependencies": {
     "@adonisjs/assembler": "8.5.1",
     "@adonisjs/core": "7.5.0",
-    "@tanstack/intent": "^0.3.7",
-    "@types/node": "26.4.0",
+    "@tanstack/intent": "^0.4.0",
+    "@types/node": "26.5.0",
     "typescript": "7.0.2",
-    "vitest": "4.1.11"
+    "vitest": "5.0.0"
   },
   "engines": {
     "node": ">=20.6.0"
