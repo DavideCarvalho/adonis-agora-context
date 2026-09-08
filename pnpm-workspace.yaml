@@ -9,3 +9,6 @@ allowBuilds:
   '@biomejs/biome': true
   '@swc/core': true
   esbuild: true
+minimumReleaseAgeExclude:
+  - '@types/node@26.5.0'
+  - unplugin-swc@1.6.0
