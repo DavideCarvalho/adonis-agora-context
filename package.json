@@ -26,7 +26,7 @@
     "release": "node scripts/sync-version.mjs --check && pnpm --filter './packages/*' build && changeset publish"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
+    "@biomejs/biome": "2.5.13",
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.2",
     "@swc/core": "1.16.2",
