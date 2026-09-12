@@ -1,4 +1,9 @@
-/** Keep in sync with this package's `version` in package.json. */
+/**
+ * Mirrors this package's `version` in package.json — not maintained by hand:
+ * `pnpm version-packages` rewrites this literal via `scripts/sync-version.mjs`
+ * after `changeset version` bumps the manifest, and `pnpm release` re-runs that
+ * script with `--check` and refuses to publish while the two disagree.
+ */
 export const VERSION = '0.6.1';
 
 // Re-export the configure hook from the package root so `node ace configure` finds it
