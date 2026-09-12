@@ -1,5 +1,11 @@
 # @adonis-agora/context
 
+## 0.6.2
+
+### Patch Changes
+
+- [`170f0b0`](https://github.com/DavideCarvalho/adonis-agora-context/commit/170f0b06ee62882ea567448a3bca7817786a560c) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Document that the exported `VERSION` literal is kept in lockstep with package.json by `scripts/sync-version.mjs` rather than by hand.
+
 ## 0.6.1
 
 ### Patch Changes

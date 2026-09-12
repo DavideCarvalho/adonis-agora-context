@@ -4,7 +4,7 @@
  * after `changeset version` bumps the manifest, and `pnpm release` re-runs that
  * script with `--check` and refuses to publish while the two disagree.
  */
-export const VERSION = '0.6.1';
+export const VERSION = '0.6.2';
 
 // Re-export the configure hook from the package root so `node ace configure` finds it
 export { configure } from '../configure.js';
