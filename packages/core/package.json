@@ -8,6 +8,21 @@
     "url": "git+https://github.com/DavideCarvalho/adonis-agora-context.git",
     "directory": "packages/core"
   },
+  "homepage": "https://davidecarvalho.github.io/agora/docs/context",
+  "bugs": {
+    "url": "https://github.com/DavideCarvalho/adonis-agora-context/issues"
+  },
+  "keywords": [
+    "adonisjs",
+    "adonis",
+    "context",
+    "async-local-storage",
+    "als",
+    "trace",
+    "tanstack-intent",
+    "tenant",
+    "agora"
+  ],
   "author": "Davi Carvalho <davi@goflip.ai>",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -82,16 +97,5 @@
   },
   "engines": {
     "node": ">=20.6.0"
-  },
-  "keywords": [
-    "adonisjs",
-    "adonis",
-    "context",
-    "async-local-storage",
-    "als",
-    "trace",
-    "tanstack-intent",
-    "tenant",
-    "agora"
-  ]
+  }
 }
