@@ -3,7 +3,7 @@
   "changelog": [
     "@changesets/changelog-github",
     {
-      "repo": "DavideCarvalho/adonis-context"
+      "repo": "DavideCarvalho/adonis-agora-context"
     }
   ],
   "commit": false,
