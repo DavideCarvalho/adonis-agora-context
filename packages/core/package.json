@@ -91,7 +91,7 @@
     "@adonisjs/assembler": "8.5.2",
     "@adonisjs/core": "7.5.2",
     "@tanstack/intent": "0.4.0",
-    "@types/node": "26.6.2",
+    "@types/node": "26.6.3",
     "typescript": "7.0.2",
     "vitest": "5.0.2"
   },
