@@ -185,8 +185,8 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
       unplugin-swc:
-        specifier: 1.6.0
-        version: 1.6.0(@swc/core@1.16.13)(esbuild@0.27.7)(rollup@4.62.2)(vite@7.3.5(@types/node@26.5.1)(yaml@2.9.0))
+        specifier: 2.0.0
+        version: 2.0.0(@swc/core@1.16.13)(esbuild@0.27.7)(rollup@4.62.2)(vite@7.3.5(@types/node@26.5.1)(yaml@2.9.0))
       vitest:
         specifier: 5.0.2
         version: 5.0.2(@types/node@26.5.1)(vite@7.3.5(@types/node@26.5.1)(yaml@2.9.0))
@@ -1768,10 +1768,6 @@ packages:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
-  picomatch@4.0.5:
-    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
-    engines: {node: '>=12'}
-
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
@@ -2031,8 +2027,9 @@ packages:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
     engines: {node: '>= 0.8'}
 
-  unplugin-swc@1.6.0:
-    resolution: {integrity: sha512-aOdzxAwJvz1GeQ8vwSNA2N8AreHYBrpwxqnwzxmB7LCdeZiXOBDj0rgjZod+lMxFsJGm8k6lF/1iKF/9wacLbw==}
+  unplugin-swc@2.0.0:
+    resolution: {integrity: sha512-hMdGJEtkwiJhzuXXx4Nb1XYDeD9KG4+P7KZOaErJTpZNYhTo1sbWIsXb+u410zXyaqH00veNX4UxOr6TpUwNiQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       '@swc/core': ^1.2.108
 
@@ -2802,7 +2799,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
       estree-walker: 2.0.2
-      picomatch: 4.0.5
+      picomatch: 4.0.7
     optionalDependencies:
       rollup: 4.62.2
 
@@ -3501,8 +3498,6 @@ snapshots:
 
   picomatch@2.3.2: {}
 
-  picomatch@4.0.5: {}
-
   picomatch@4.0.7: {}
 
   pino-abstract-transport@3.0.0:
@@ -3767,7 +3762,7 @@ snapshots:
 
   unpipe@1.0.0: {}
 
-  unplugin-swc@1.6.0(@swc/core@1.16.13)(esbuild@0.27.7)(rollup@4.62.2)(vite@7.3.5(@types/node@26.5.1)(yaml@2.9.0)):
+  unplugin-swc@2.0.0(@swc/core@1.16.13)(esbuild@0.27.7)(rollup@4.62.2)(vite@7.3.5(@types/node@26.5.1)(yaml@2.9.0)):
     dependencies:
       '@rollup/pluginutils': 5.4.0(rollup@4.62.2)
       '@swc/core': 1.16.13
@@ -3787,7 +3782,7 @@ snapshots:
   unplugin@3.3.0(esbuild@0.27.7)(rollup@4.62.2)(vite@7.3.5(@types/node@26.5.1)(yaml@2.9.0)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       webpack-virtual-modules: 0.6.2
     optionalDependencies:
       esbuild: 0.27.7
