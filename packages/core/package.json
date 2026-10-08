@@ -89,7 +89,7 @@
   },
   "devDependencies": {
     "@adonisjs/assembler": "8.5.2",
-    "@adonisjs/core": "7.5.2",
+    "@adonisjs/core": "7.6.0",
     "@tanstack/intent": "0.5.4",
     "@types/node": "26.6.4",
     "typescript": "7.0.2",
