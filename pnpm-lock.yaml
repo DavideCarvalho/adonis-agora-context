@@ -197,8 +197,8 @@ importers:
         specifier: 8.5.2
         version: 8.5.2(typescript@7.0.2)
       '@adonisjs/core':
-        specifier: 7.5.2
-        version: 7.5.2(@adonisjs/assembler@8.5.2(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)
+        specifier: 7.6.0
+        version: 7.6.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)
       '@tanstack/intent':
         specifier: 0.5.4
         version: 0.5.4
@@ -247,8 +247,8 @@ packages:
     resolution: {integrity: sha512-YVDRL8xHCtM6iMnAefOBaz6iXVpojwBPDQWPKxnVSucycYeNGrGitJiLy+cGaeAU7Gjm8al9SJRJt3rRPr5PKg==}
     engines: {node: '>=24.0.0'}
 
-  '@adonisjs/core@7.5.2':
-    resolution: {integrity: sha512-dnNEerJ5Vhz7WtMrzjtJh7OTiGKdQrH0Ng3plzRWgHrwcS6zwNG+uxVK5f9bUGKHdCIv0WT2KhvViKIxx5OftQ==}
+  '@adonisjs/core@7.6.0':
+    resolution: {integrity: sha512-DGDkpoNrExwLhhmuzZBaOKe6wk67HI/0+3GLWsJXB+Ze4NjXuKKOT5169R2CqpSO6yvL1Xw39HwSJ9YJ1oTvLg==}
     engines: {node: '>=24.0.0'}
     hasBin: true
     peerDependencies:
@@ -2202,7 +2202,7 @@ snapshots:
       '@poppinss/hooks': 7.3.1
       '@poppinss/macroable': 1.1.2
       '@poppinss/prompts': 3.1.6
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       fastest-levenshtein: 1.0.16
       jsonschema: 1.5.0
       string-width: 8.2.2
@@ -2215,7 +2215,7 @@ snapshots:
       '@adonisjs/fold': 11.1.0
       '@poppinss/hooks': 7.3.1
       '@poppinss/macroable': 1.1.2
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       glob-parent: 6.0.2
       tempura: 0.4.1
     optionalDependencies:
@@ -2255,7 +2255,7 @@ snapshots:
       '@poppinss/middleware': 3.2.7
       '@poppinss/multiparty': 3.0.0
       '@poppinss/qs': 6.15.0
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       file-type: 22.0.1(supports-color@10.2.2)
       inflation: 2.1.0
       media-typer: 1.1.0
@@ -2265,9 +2265,9 @@ snapshots:
 
   '@adonisjs/config@6.1.0':
     dependencies:
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
 
-  '@adonisjs/core@7.5.2(@adonisjs/assembler@8.5.2(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)':
+  '@adonisjs/core@7.6.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)':
     dependencies:
       '@adonisjs/ace': 14.1.1(youch@4.1.1)
       '@adonisjs/application': 9.1.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
@@ -2309,23 +2309,23 @@ snapshots:
     dependencies:
       '@adonisjs/application': 9.1.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
       '@adonisjs/fold': 11.1.0
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       '@sindresorhus/is': 7.2.0
       emittery: 1.2.1
 
   '@adonisjs/fold@11.1.0':
     dependencies:
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       parse-imports: 3.0.0
 
   '@adonisjs/hash@10.1.1':
     dependencies:
       '@phc/format': 1.0.0
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
 
   '@adonisjs/health@3.1.0':
     dependencies:
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       check-disk-space: 3.4.0
 
   '@adonisjs/http-server@9.3.1(@adonisjs/application@9.1.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1)':
@@ -2341,7 +2341,7 @@ snapshots:
       '@poppinss/middleware': 3.2.7
       '@poppinss/qs': 6.15.0
       '@poppinss/types': 1.2.1
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       '@sindresorhus/is': 8.1.0
       content-disposition: 1.1.0
       cookie-es: 3.1.1
@@ -2366,7 +2366,7 @@ snapshots:
 
   '@adonisjs/logger@7.1.1':
     dependencies:
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
       abstract-logging: 2.0.1
       pino: 10.3.1
 
@@ -2460,7 +2460,7 @@ snapshots:
 
   '@boringnode/encryption@1.0.1':
     dependencies:
-      '@poppinss/utils': 7.0.1
+      '@poppinss/utils': 7.1.1
 
   '@boringnode/route-matcher@0.1.1': {}
 
