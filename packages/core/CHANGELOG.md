@@ -1,5 +1,11 @@
 # @adonis-agora/context
 
+## 0.7.0
+
+### Minor Changes
+
+- [#97](https://github.com/DavideCarvalho/adonis-agora-context/pull/97) [`f4c63b0`](https://github.com/DavideCarvalho/adonis-agora-context/commit/f4c63b08a4b4bd16f54050eda8458491141232ad) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Drop Node.js 20 and 22: `engines.node` is now `>=24`. Node 20 reached end-of-life on 2026-04-30, and AdonisJS 7, which these packages require as a peer, needs Node 24 or later (`@adonisjs/core` declares `engines.node >=24.0.0`). The supported lines are the ones Node still maintains that AdonisJS 7 accepts: 24 and 26, both tested in CI.
+
 ## 0.6.2
 
 ### Patch Changes
