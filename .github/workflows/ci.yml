@@ -32,13 +32,13 @@ jobs:
       - run: pnpm build
 
   # Lint, typecheck and build run once on the pinned version above; only the test
-  # suite fans out across every Node line we support (22, 24 and 26).
+  # suite fans out across every Node line we support (24 and 26: maintained by Node and accepted by AdonisJS 7).
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24, 26]
+        node: [24, 26]
     name: test (node ${{ matrix.node }})
     steps:
       - uses: actions/checkout@v7.0.1
