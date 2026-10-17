@@ -59,6 +59,11 @@ Agora is the AdonisJS port of the [aviary](https://github.com/DavideCarvalho?tab
 NestJS ecosystem. `@adonis-agora/context` is the foundation other Agora libs build on
 (diagnostics, telescope, authz, filter, durable).
 
+## Sponsors
+
+Every Agora library is MIT and stays free. The work is funded by partners and
+sponsors — [become one](https://davidecarvalho.github.io/agora/partners).
+
 ## License
 
 MIT © Davi Carvalho
