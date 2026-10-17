@@ -1,5 +1,7 @@
 # `@adonis-agora/context`
 
+[![npm version](https://img.shields.io/npm/v/@adonis-agora/context)](https://www.npmjs.com/package/@adonis-agora/context) [![npm downloads](https://img.shields.io/npm/dm/@adonis-agora/context)](https://www.npmjs.com/package/@adonis-agora/context) [![CI](https://github.com/DavideCarvalho/adonis-agora-context/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/DavideCarvalho/adonis-agora-context/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/@adonis-agora/context)](https://www.npmjs.com/package/@adonis-agora/context)
+
 > Shared AsyncLocalStorage context for **AdonisJS** — carries `user` / `tenant` /
 > `traceId` across the request **and** the [Agora](#the-agora-ecosystem)
 > ecosystem (HTTP, queue workers, durable, ace commands).
@@ -48,7 +50,7 @@ cross-boundary semantics, W3C baggage).
 
 | Entry point | What |
 |---|---|
-| [`@adonis-agora/context`](./packages/core) | core — ALS, middleware, provider, config, serialize, baggage, traceparent |
+| [`@adonis-agora/context`](./packages/core) [![npm](https://img.shields.io/npm/v/@adonis-agora/context)](https://www.npmjs.com/package/@adonis-agora/context) | core — ALS, middleware, provider, config, serialize, baggage, traceparent |
 | [`@adonis-agora/context/testing`](./packages/core/src/testing) | `runWithContext()` / `enterContext()` test helpers |
 
 ## The Agora ecosystem
