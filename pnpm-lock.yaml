@@ -194,11 +194,11 @@ importers:
   packages/core:
     devDependencies:
       '@adonisjs/assembler':
-        specifier: 8.5.2
-        version: 8.5.2(typescript@7.0.2)
+        specifier: 8.6.0
+        version: 8.6.0(typescript@7.0.2)
       '@adonisjs/core':
         specifier: 7.6.0
-        version: 7.6.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)
+        version: 7.6.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)
       '@tanstack/intent':
         specifier: 0.5.5
         version: 0.5.5
@@ -231,8 +231,8 @@ packages:
       '@adonisjs/assembler':
         optional: true
 
-  '@adonisjs/assembler@8.5.2':
-    resolution: {integrity: sha512-CipLZEl/2zBa6ejoMogXsXAg4+8hIf0CAhRaHjf9KXfeUininRc9Wg3zFv+To1xgHLjnuPiQfqKBhP6I44KVlA==}
+  '@adonisjs/assembler@8.6.0':
+    resolution: {integrity: sha512-IqlirhJAwtF+Dvj2gSExfIDXOz0n2GlMlmBMyYpziWokbskWYY1D6x2SQiLtzHqZ6Iu9Bq4zClACmpniPoNdEw==}
     engines: {node: '>=24.0.0'}
     peerDependencies:
       typescript: ^5.0.0 || ^6.0.0
@@ -2075,7 +2075,7 @@ snapshots:
       yargs-parser: 22.0.0
       youch: 4.1.1
 
-  '@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)':
+  '@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)':
     dependencies:
       '@adonisjs/config': 6.1.0
       '@adonisjs/fold': 11.1.0
@@ -2085,9 +2085,9 @@ snapshots:
       glob-parent: 6.0.2
       tempura: 0.4.1
     optionalDependencies:
-      '@adonisjs/assembler': 8.5.2(typescript@7.0.2)
+      '@adonisjs/assembler': 8.6.0(typescript@7.0.2)
 
-  '@adonisjs/assembler@8.5.2(typescript@7.0.2)':
+  '@adonisjs/assembler@8.6.0(typescript@7.0.2)':
     dependencies:
       '@adonisjs/env': 7.1.0
       '@antfu/install-pkg': 2.1.0
@@ -2114,9 +2114,9 @@ snapshots:
     transitivePeerDependencies:
       - babel-plugin-macros
 
-  '@adonisjs/bodyparser@11.0.4(@adonisjs/http-server@9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1))(supports-color@10.2.2)':
+  '@adonisjs/bodyparser@11.0.4(@adonisjs/http-server@9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1))(supports-color@10.2.2)':
     dependencies:
-      '@adonisjs/http-server': 9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1)
+      '@adonisjs/http-server': 9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1)
       '@poppinss/macroable': 1.1.2
       '@poppinss/middleware': 3.2.7
       '@poppinss/multiparty': 3.0.0
@@ -2133,18 +2133,18 @@ snapshots:
     dependencies:
       '@poppinss/utils': 7.1.2
 
-  '@adonisjs/core@7.6.0(@adonisjs/assembler@8.5.2(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)':
+  '@adonisjs/core@7.6.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)':
     dependencies:
       '@adonisjs/ace': 14.1.1(youch@4.1.1)
-      '@adonisjs/application': 9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
-      '@adonisjs/bodyparser': 11.0.4(@adonisjs/http-server@9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1))(supports-color@10.2.2)
+      '@adonisjs/application': 9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
+      '@adonisjs/bodyparser': 11.0.4(@adonisjs/http-server@9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1))(supports-color@10.2.2)
       '@adonisjs/config': 6.1.0
       '@adonisjs/env': 7.1.0
-      '@adonisjs/events': 10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)
+      '@adonisjs/events': 10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)
       '@adonisjs/fold': 11.1.0
       '@adonisjs/hash': 10.1.1
       '@adonisjs/health': 3.1.0
-      '@adonisjs/http-server': 9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1)
+      '@adonisjs/http-server': 9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1)
       '@adonisjs/http-transformers': 2.3.1(@adonisjs/fold@11.1.0)
       '@adonisjs/logger': 7.1.1
       '@adonisjs/repl': 5.0.0
@@ -2160,7 +2160,7 @@ snapshots:
       pretty-hrtime: 1.0.3
       string-width: 8.3.0
     optionalDependencies:
-      '@adonisjs/assembler': 8.5.2(typescript@7.0.2)
+      '@adonisjs/assembler': 8.6.0(typescript@7.0.2)
       youch: 4.1.1
     transitivePeerDependencies:
       - supports-color
@@ -2171,9 +2171,9 @@ snapshots:
       '@poppinss/validator-lite': 2.1.2
       split-lines: 3.0.0
 
-  '@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)':
+  '@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)':
     dependencies:
-      '@adonisjs/application': 9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
+      '@adonisjs/application': 9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
       '@adonisjs/fold': 11.1.0
       '@poppinss/utils': 7.1.2
       '@sindresorhus/is': 7.2.0
@@ -2194,10 +2194,10 @@ snapshots:
       '@poppinss/utils': 7.1.2
       check-disk-space: 3.4.0
 
-  '@adonisjs/http-server@9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1)':
+  '@adonisjs/http-server@9.3.1(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/events@10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)(@adonisjs/logger@7.1.1)(@boringnode/encryption@1.0.1)(youch@4.1.1)':
     dependencies:
-      '@adonisjs/application': 9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
-      '@adonisjs/events': 10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.5.2(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)
+      '@adonisjs/application': 9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0)
+      '@adonisjs/events': 10.2.0(@adonisjs/application@9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.0))(@adonisjs/fold@11.1.0)
       '@adonisjs/fold': 11.1.0
       '@adonisjs/logger': 7.1.1
       '@boringnode/encryption': 1.0.1
