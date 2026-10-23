@@ -16,8 +16,8 @@ on:
     branches: [master]
   workflow_dispatch:
 
-# Never run two releases concurrently (avoids a double-publish race). Shared by both paths
-# on purpose: a snapshot racing a real publish is the same hazard.
+# Never run two releases of the same ref concurrently (avoids a double-publish race), and queue
+# rather than cancel: a run cut off mid-publish leaves a half-released state.
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -29,6 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # push the "version packages" commit + git tags
+      # `@changesets/changelog-github` resolves each changeset's PR and author through the API;
+      # job-level permissions set every unlisted scope to none.
+      pull-requests: read
       # Lets the job mint an OIDC token for npm trusted publishing, so a release needs no
       # long-lived NPM_TOKEN. changesets/action probes for this; without it the run logs
       # "No NPM_TOKEN or OIDC available" and never attempts OIDC at all.
@@ -58,11 +61,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # A published version is effectively unrecallable, and every push to master with a pending
-      # changeset publishes: verify the exact commit being released here (the same checks as
-      # ci.yml, on its pinned Node) rather than trusting the PR's CI on an older base.
+      # changeset publishes: verify the exact commit being released here rather than trusting the
+      # PR's CI on an older base. These are ci.yml's checks on its pinned Node (the Node matrix
+      # stays in ci.yml). Build runs here too, so a broken build fails before the version commit
+      # is pushed rather than after.
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm build
 
       # A Renovate patch/minor bump automerges on its own and brings no changeset with it, so
       # the new dependency would reach npm only with the next hand-written changeset. This writes
@@ -133,9 +139,14 @@ jobs:
 
       # Pending changesets -> bump the versions and changelogs, and push that as a
       # "chore: version packages" commit straight to master. A push made with GITHUB_TOKEN does not
-      # start another workflow run, so this cannot loop. Rebased onto master first, so a commit
-      # that landed while the tests ran does not reject the push.
+      # start another workflow run, so this cannot loop.
+      #
+      # No rebase: everything this run publishes must be what the gate above verified. If master
+      # moved while it ran, the push is rejected and this run stops without publishing. The run
+      # queued (by the concurrency group) for the newer commit then gates the combined tree and
+      # versions + publishes it all.
       - name: Version packages
+        id: version
         run: |
           pending=$(find .changeset -maxdepth 1 -name '*.md' ! -iname 'readme.md' | wc -l)
           if [ "$pending" -eq 0 ]; then
@@ -146,9 +157,20 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
+          if git diff --cached --quiet; then
+            echo "version-packages changed nothing (e.g. only private packages): nothing to commit."
+            exit 0
+          fi
           git commit -m "chore: version packages"
-          git pull --rebase origin ${{ github.ref_name }}
-          git push origin HEAD:${{ github.ref_name }}
+          if git push origin HEAD:${{ github.ref_name }}; then exit 0; fi
+          git fetch origin ${{ github.ref_name }}
+          if [ "$(git rev-parse FETCH_HEAD)" != "${{ github.sha }}" ]; then
+            echo "::notice::master moved during this run; the run for the newer commit releases it."
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::error::Pushing the version commit failed and master has not moved."
+          exit 1
         env:
           # `@changesets/changelog-github` looks up each changeset's PR and author while writing the
           # changelogs, and throws without a token.
@@ -158,15 +180,16 @@ jobs:
       # publishes every package whose version is not on npm yet, then tags git and creates the
       # GitHub releases.
       - name: Publish to npm
+        if: steps.version.outputs.superseded != 'true'
         uses: changesets/action@v2.1.2
         with:
           publish-script: pnpm release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Deliberadamente vazio: o setup-node escreve o .npmrc com
-          # _authToken=${NODE_AUTH_TOKEN}, e um token de verdade ali GANHA do OIDC -- o npm
-          # usa o token e nunca troca o id-token por credencial. Vazio, o npm ve que nao ha
-          # auth e cai no trusted publishing.
+          # Deliberately empty: setup-node writes .npmrc with _authToken=${NODE_AUTH_TOKEN},
+          # and a real token there wins over OIDC -- npm uses the token and never exchanges
+          # the id-token for a credential. Empty, npm sees no auth and falls back to trusted
+          # publishing.
           NODE_AUTH_TOKEN: ''
 
   snapshot:
@@ -175,6 +198,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: read # changelog-github, as in the release job
       id-token: write # mints the OIDC credential npm exchanges for a publish token
     steps:
       # Cuts a THROWAWAY prerelease of every package with a pending changeset, published under the
@@ -205,7 +229,9 @@ jobs:
       # Stamp every pending-changeset package (and any out-of-range dependent) to
       # `0.0.0-beta-<datetime>` in the runner only, never committed.
       - name: Version as beta snapshot
-        run: pnpm changeset version --snapshot beta
+        run: pnpm changeset version --snapshot beta && node scripts/sync-version.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # changelog-github, as in the release job
 
       - name: Build all packages
         run: pnpm --filter './packages/*' build
