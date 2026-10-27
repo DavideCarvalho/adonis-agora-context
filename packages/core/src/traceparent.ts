@@ -89,22 +89,37 @@ export function parseTraceparent(
   return { traceId, parentId: match[3] as string, flags: match[4] as string };
 }
 
-// Reused scratch buffers for id generation. `randomFillSync` overwrites every
-// byte each call and the result is stringified before returning, so reusing a
-// single buffer per size avoids a per-call Buffer allocation. Safe because these
-// are synchronous (no yield between fill and `.toString`), single-threaded JS,
-// and a worker_thread gets its own module instance / buffers.
-const traceIdScratch = Buffer.allocUnsafe(16);
-const spanIdScratch = Buffer.allocUnsafe(8);
+// Pooled entropy for id generation. A `randomFillSync` call has a fixed cost
+// (~1.5µs) that dwarfs the bytes it produces, so instead of one call per id we
+// fill a larger pool once and hand out consecutive, never-reused slices — the
+// same batching Node applies internally to `crypto.randomUUID()`. Every id is
+// still fresh CSPRNG output; a slice is consumed exactly once before the pool
+// is refilled. Safe because id generation is synchronous (no yield between
+// reading a slice and advancing the offset), single-threaded JS, and a
+// worker_thread gets its own module instance / pool.
+const ENTROPY_POOL_SIZE = 4096;
+const entropyPool = Buffer.allocUnsafe(ENTROPY_POOL_SIZE);
+let entropyOffset = ENTROPY_POOL_SIZE;
+
+/** `bytes` fresh random bytes from the pool, hex-encoded. */
+function randomHex(bytes: number): string {
+  if (entropyOffset + bytes > ENTROPY_POOL_SIZE) {
+    randomFillSync(entropyPool);
+    entropyOffset = 0;
+  }
+  const start = entropyOffset;
+  entropyOffset += bytes;
+  return entropyPool.toString('hex', start, start + bytes);
+}
 
 /** A fresh 16-byte (32 hex char) trace-id, matching the W3C trace-id shape. */
 export function randomTraceId(): string {
-  return randomFillSync(traceIdScratch).toString('hex');
+  return randomHex(16);
 }
 
 /** A fresh 8-byte (16 hex char) span-id / parent-id, per the W3C shape. */
 function randomSpanId(): string {
-  return randomFillSync(spanIdScratch).toString('hex');
+  return randomHex(8);
 }
 
 /**

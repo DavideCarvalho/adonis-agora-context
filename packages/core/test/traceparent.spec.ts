@@ -52,6 +52,18 @@ describe('randomTraceId', () => {
   it('produces distinct ids', () => {
     expect(randomTraceId()).not.toBe(randomTraceId());
   });
+
+  it('stays well-formed and unique across entropy-pool refills', () => {
+    // Enough ids (mixed with span-ids, which share the pool) to cross several refills.
+    const ids = new Set<string>();
+    for (let i = 0; i < 2000; i++) {
+      const id = randomTraceId();
+      expect(id).toMatch(/^[0-9a-f]{32}$/);
+      ids.add(id);
+      expect(toTraceparent(id)).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
+    }
+    expect(ids.size).toBe(2000);
+  });
 });
 
 describe('parseTraceparent', () => {
