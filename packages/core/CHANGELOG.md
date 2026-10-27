@@ -1,5 +1,11 @@
 # @adonis-agora/context
 
+## 0.7.1
+
+### Patch Changes
+
+- [#119](https://github.com/DavideCarvalho/adonis-agora-context/pull/119) [`e54c021`](https://github.com/DavideCarvalho/adonis-agora-context/commit/e54c021f70f1ccb09bc7b2f7b6da78699aeb92c7) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - perf: generate trace-ids and span-ids from a pooled CSPRNG buffer (refilled every 4 KiB) instead of one `randomFillSync` call per id. Minting the trace-id the middleware assigns to every request without an upstream `traceparent` drops from ~1.5µs to ~80ns; ids keep the same format and are still fresh, never-reused random bytes.
+
 ## 0.7.0
 
 ### Minor Changes
