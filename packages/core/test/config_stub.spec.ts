@@ -83,6 +83,7 @@ describe('config/context.stub', () => {
     expect(raw.length).toBeGreaterThan(0);
   });
 
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: names the literal `${` the test looks for
   it('keeps its body free of backticks and ${ }', () => {
     // Scoped to the BODY: the `{{{ … }}}` header is evaluated as JavaScript, where a backtick is
     // legitimate (other packages build their destination with a template literal there). Only the
@@ -95,6 +96,7 @@ describe('config/context.stub', () => {
     ).not.toContain('`');
     expect(
       body,
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal `${` is what this test looks for
       'a ${ } in the body is evaluated as an interpolation — configure throws before writing',
     ).not.toContain('${');
   });
