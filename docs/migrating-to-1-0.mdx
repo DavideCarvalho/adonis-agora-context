@@ -1,0 +1,58 @@
+---
+title: Migrating to 1.0
+description: Move an app from @adonis-agora/context 0.x to 1.0. The public API is unchanged; 1.0 requires Node.js 24 or later.
+icon: ArrowUpCircle
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+`@adonis-agora/context` 1.0 keeps the 0.7 API as it is. Every import, accessor, config option and subpath works the same, so most apps upgrade by changing the version and nothing else.
+
+---
+
+## Requirements
+
+- **Node.js 24 or later.** `engines.node` is `>=24`, the same line AdonisJS 7 requires.
+- **AdonisJS 7** (`@adonisjs/core` `^7.3.0`), unchanged.
+
+If your app already runs on AdonisJS 7, it already runs on Node 24 or later.
+
+---
+
+## Upgrade
+
+1.0 is published first as a release candidate under the `rc` tag:
+
+```sh
+npm i @adonis-agora/context@rc
+```
+
+Once 1.0.0 is final, install it as usual:
+
+```sh
+npm i @adonis-agora/context@^1.0.0
+```
+
+---
+
+## Breaking changes
+
+There are no API changes. Code like this works on 1.0 exactly as it did on 0.7:
+
+```ts
+// app/controllers/orders_controller.ts
+import type { HttpContext } from '@adonisjs/core/http'
+import { Context } from '@adonis-agora/context'
+
+export default class OrdersController {
+  async index({ auth, inertia }: HttpContext) {
+    Context.set('userRef', { type: 'user', id: auth.user!.id })
+
+    return inertia.render('orders/index', { traceId: Context.traceId() })
+  }
+}
+```
+
+<Callout type="info">
+  Other `@adonis-agora/*` packages that read the context also move to 1.0. Upgrade them together, and check each package's own migration page.
+</Callout>

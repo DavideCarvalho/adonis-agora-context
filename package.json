@@ -18,6 +18,7 @@
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "typecheck": "turbo run typecheck",
+    "check:package": "node scripts/check-package.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -26,10 +27,12 @@
     "release": "node scripts/sync-version.mjs --check && pnpm --filter './packages/*' build && changeset publish"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@biomejs/biome": "2.6.6",
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.3",
     "@swc/core": "1.16.22",
+    "publint": "0.3.25",
     "turbo": "2.11.10",
     "typescript": "7.0.2",
     "unplugin-swc": "2.0.0",

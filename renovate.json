@@ -13,6 +13,13 @@
       "enabled": false
     },
     {
+      "description": "Build and release stay pinned to Node 24 and CI tests 24 and 26 (1.0 policy), so Renovate never proposes a major bump of the pinned Node toolchain: `.nvmrc` (nvm), `.node-version` (nodenv) and setup-node's `node-version` (github-actions). Patch and minor bumps within 24 still come through.",
+      "matchManagers": ["nvm", "nodenv", "github-actions"],
+      "matchDepNames": ["node"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Patch, minor and pin bumps merge on their own once CI is green. These are the ones `release.yml` turns into an automatic patch release. `pin` is its own update type in Renovate rather than a flavour of patch, so it has to be named here or the initial pinning PR sits open forever. Same for `packageManager`, the pnpm version in package.json: it is neither a dependency nor a devDependency, so every pnpm bump used to wait for a person.",
       "matchDepTypes": ["dependencies", "devDependencies", "packageManager"],
       "matchUpdateTypes": ["patch", "minor", "pin"],
