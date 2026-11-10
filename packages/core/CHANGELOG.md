@@ -1,5 +1,11 @@
 # @adonis-agora/context
 
+## 1.0.0-rc.0
+
+### Major Changes
+
+- [#124](https://github.com/DavideCarvalho/adonis-agora-context/pull/124) [`8d83e6c`](https://github.com/DavideCarvalho/adonis-agora-context/commit/8d83e6c68881d0faa0560039be1b8b0010f383c2) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - 1.0.0: the API is now stable. No breaking API changes from 0.7: every export, accessor, config option and subpath is unchanged. Node.js 24 or later is required (`engines.node >=24`, as since 0.7.0). See the "Migrating to 1.0" docs page.
+
 ## 0.7.1
 
 ### Patch Changes
