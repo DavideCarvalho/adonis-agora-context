@@ -43,7 +43,7 @@ domains:
     key_facts:
       - The middleware lands on the **server** stack on purpose (runs on every request before route resolution) and uses `enterWith`, not `run`, so the context survives the middleware return into async handlers.
       - Accessors never throw outside a context — they return undefined; only `traceId` is non-optional on an active store.
-      - `Context.set()` outside a context is a silent no-op plus a **one-shot console.warn** (`resetSetWarning()` re-arms it); auth must stamp userRef/tenantId AFTER the middleware established the store.
+      - '`Context.set()` outside a context is a silent no-op plus a **one-shot console.warn** (`resetSetWarning()` re-arms it); auth must stamp userRef/tenantId AFTER the middleware established the store.'
       - The store carries a UserRef `{ type, id }`, never the hydrated Lucid model — serializability + decoupling.
       - Middleware precedence: initialize(ctx) merges FIRST, resolved traceId/requestId are written LAST and always win.
       - Module augmentation declares fields but populates nothing — use initialize/enrichers/Context.set to fill them.
