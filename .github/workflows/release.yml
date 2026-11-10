@@ -63,12 +63,13 @@ jobs:
       # A published version is effectively unrecallable, and every push to master with a pending
       # changeset publishes: verify the exact commit being released here rather than trusting the
       # PR's CI on an older base. These are ci.yml's checks on its pinned Node (the Node matrix
-      # stays in ci.yml). Build runs here too, so a broken build fails before the version commit
-      # is pushed rather than after.
+      # stays in ci.yml), including check:package (publint + attw). Build runs here too, so a broken
+      # build fails before the version commit is pushed rather than after.
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm check:package
 
       # A Renovate patch/minor bump automerges on its own and brings no changeset with it, so
       # the new dependency would reach npm only with the next hand-written changeset. This writes
@@ -237,6 +238,9 @@ jobs:
 
       # Stamp every pending-changeset package (and any out-of-range dependent) to
       # `0.0.0-beta-<datetime>` in the runner only, never committed.
+      #
+      # Unavailable while .changeset/pre.json exists (rc pre mode): changesets rejects snapshot
+      # versioning in pre mode, so this step fails until `pnpm changeset pre exit` lands.
       - name: Version as beta snapshot
         run: pnpm changeset version --snapshot beta && node scripts/sync-version.mjs
         env:
