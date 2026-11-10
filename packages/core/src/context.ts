@@ -245,8 +245,9 @@ export const Context = {
    * Mutate a field on the active store (e.g. the auth guard sets `userRef`
    * after the middleware already entered the context).
    *
-   * Outside an active context this is a no-op (kept backward-compatible — it
-   * never throws), but it emits a one-shot `console.warn`, because a silently
+   * Outside an active context this is a no-op that never throws (other Agora
+   * libs write through the `CONTEXT_SET` slot best-effort), but it emits a
+   * one-shot `console.warn`, because a silently
    * dropped `set` is a common footgun: e.g. an auth guard calls
    * `Context.set('userRef', …)` on a route the middleware was excluded from, so
    * the value is lost without a trace. The warning fires once per process; call
