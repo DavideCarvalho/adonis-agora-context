@@ -41,7 +41,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7.1.0
         with:
@@ -217,7 +217,7 @@ jobs:
       # and still produces clean semver. Use it to try unreleased work: `pnpm add <pkg>@beta`.
       - uses: actions/checkout@v7.0.1
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7.1.0
         with:
