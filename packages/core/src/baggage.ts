@@ -96,12 +96,18 @@ export interface BaggageKeyMap {
   tenantId?: string | false;
   /** Baggage key for `userRef`, or `false` to never propagate it. */
   userRef?: string | false;
+  /**
+   * Baggage key for the tenant's `kind` (sent next to `tenantId` when tenancy is
+   * enabled), or `false` to never propagate it.
+   */
+  tenantKind?: string | false;
 }
 
 /** The resolved baggage keys actually used by encode/decode. */
 export interface ResolvedBaggageKeys {
   tenantId: string | false;
   userRef: string | false;
+  tenantKind: string | false;
 }
 
 /** Apply defaults to a (possibly partial / undefined) {@link BaggageKeyMap}. */
@@ -109,6 +115,7 @@ export function resolveBaggageKeys(map: BaggageKeyMap | undefined): ResolvedBagg
   return {
     tenantId: map?.tenantId ?? 'tenantId',
     userRef: map?.userRef ?? 'userRef',
+    tenantKind: map?.tenantKind ?? 'tenantKind',
   };
 }
 

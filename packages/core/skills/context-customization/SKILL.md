@@ -5,10 +5,12 @@ description: >-
   defineConfig — traceId / initialize hooks, enrichers[] and Context.lazy for
   derived fields, carrier: [...] and full serialize/deserialize overrides, the
   baggage key map (custom key or false) — plus Context.runEnrichers() outside
-  HTTP, process-global Context.configure() / resetConfig(), and the three
+  HTTP, process-global Context.configure() / resetConfig(), and the four
   globalThis ecosystem slots CONTEXT_ACCESSOR (Symbol.for('@agora/context:accessor'),
-  overloaded get()/get(key)), CONTEXT_SET (contextWriter.set(patch)) and
-  CONTEXT_SCOPE (contextScope(snapshot, fn)). Use for "add a custom field to
+  overloaded get()/get(key), plus tenant()/tenants()/tenantChain()/tenancy()/
+  tenantFilter()), CONTEXT_SET (contextWriter.set(patch)),
+  CONTEXT_SCOPE (contextScope(snapshot, fn)) and CONTEXT_TENANCY
+  (Symbol.for('@agora/context:tenancy'), version: 1). Use for "add a custom field to
   the context", "derive fields from tenantId", "change which fields cross the
   queue boundary", "swap what consumer libraries read", or "configure the
   context in a bare worker without the Adonis provider".
@@ -39,7 +41,7 @@ and 4 live entirely in `config/context.ts`, validated by `defineConfig`.
 | 1 | Add your own fields | module augmentation of `ContextStore` | — |
 | 2 | Populate fields / trace id | `traceId` / `initialize` / `enrichers` | `traceparent` header → random |
 | 3 | Non-HTTP entrypoints | `Context.run` / `enterWith` (+ `configure`) | middleware on `server` stack |
-| 4 | What survives cross-process | `carrier` / `serialize` / `deserialize` / `baggage` | `traceId` + `tenantId` + `userRef` |
+| 4 | What survives cross-process | `carrier` / `serialize` / `deserialize` / `baggage` | `traceId` + `tenantId` + `userRef` (+ `tenant`/`tenantFamilies` when `tenancy.enabled`) |
 | 5 | Swap the accessor libs read | overwrite the `globalThis` slot | `contextAccessor` |
 
 ## Setup
@@ -122,7 +124,8 @@ List extra fields on the default carrier, or take both directions wholesale:
 export default defineConfig({
   carrier: ['traceId', 'tenantId', 'userRef', 'locale'], // opt a custom field in
 
-  // Or override both directions completely:
+  // Or override both directions completely. Note: with `tenancy.enabled`, the
+  // tenant still rides every carrier even when the overrides omit it.
   serialize: (store) => ({
     traceId: store.traceId,
     tenantId: store.tenantId,
@@ -136,12 +139,14 @@ export default defineConfig({
 })
 ```
 
-Baggage propagation is tuned independently — namespace a key or drop a field:
+Baggage propagation is tuned independently — namespace a key or drop a field
+(`tenantKind` rides next to `tenantId` when tenancy is enabled):
 
 ```ts
 export default defineConfig({
   baggage: {
     tenantId: 'acme.tenant', // namespaced baggage key
+    tenantKind: 'acme.kind', // tenant kind next to tenantId (tenancy only)
     userRef: false,          // never put the principal on a baggage header
   },
 })
@@ -154,7 +159,7 @@ Source: `docs/customization.mdx` (Level 4), `packages/core/src/define_config.ts`
 A process that never boots the AdonisJS application has no provider, so the
 singleton keeps defaults. Call `Context.configure()` once at process start.
 It reads **only** the cross-boundary keys (`carrier`, `serialize`,
-`deserialize`, `baggage`, `enrichers`) — passing `traceHeader`/`traceId`/
+`deserialize`, `baggage`, `tenancy`, `enrichers`) — passing `traceHeader`/`traceId`/
 `initialize` has no effect there.
 
 ```ts
@@ -174,12 +179,17 @@ a `globalThis` slot published at import time. Overwrite the slot to change what
 they see (e.g. hydrate the full user). Do it early, e.g. in a provider `boot()`.
 
 ```ts
-import { CONTEXT_ACCESSOR, type ContextAccessor, Context } from '@adonis-agora/context'
+import { CONTEXT_ACCESSOR, type ContextAccessor, type TenantFilterOptions, Context } from '@adonis-agora/context'
 
 const hydrating: ContextAccessor = {
   traceId: () => Context.traceId(),
   tenantId: () => Context.tenantId(),
   userRef: () => Context.userRef(),
+  tenant: () => Context.tenant(),
+  tenants: () => Context.tenants(),
+  tenantChain: (family?: string) => Context.tenantChain(family),
+  tenancy: () => Context.tenancy(),
+  tenantFilter: (options?: TenantFilterOptions) => Context.tenantFilter(options),
   get: ((key?: string) => {
     const store = Context.get()
     return key === undefined ? store : store?.[key as keyof typeof store]
@@ -188,9 +198,11 @@ const hydrating: ContextAccessor = {
 ;(globalThis as Record<symbol, unknown>)[CONTEXT_ACCESSOR] = hydrating
 ```
 
-Two sibling slots complete the set — `CONTEXT_SET` merges a patch into an
+Three sibling slots complete the set — `CONTEXT_SET` merges a patch into an
 already-active store, `CONTEXT_SCOPE` establishes a whole store around a
-callback (the primitive durable reads):
+callback (the primitive durable reads), and `CONTEXT_TENANCY`
+(`Symbol.for('@agora/context:tenancy')`, `version: 1`) exposes the tenancy
+contract so libs read the tenant without importing this package:
 
 ```ts
 import { contextWriter, contextScope } from '@adonis-agora/context'
@@ -213,6 +225,11 @@ const accessor: ContextAccessor = {
   traceId: () => Context.traceId(),
   tenantId: () => Context.tenantId(),
   userRef: () => Context.userRef(),
+  tenant: () => Context.tenant(),
+  tenants: () => Context.tenants(),
+  tenantChain: (family?: string) => Context.tenantChain(family),
+  tenancy: () => Context.tenancy(),
+  tenantFilter: (options?: TenantFilterOptions) => Context.tenantFilter(options),
   get: () => Context.get(), // no-arg only
 }
 ;(globalThis as Record<symbol, unknown>)[CONTEXT_ACCESSOR] = accessor

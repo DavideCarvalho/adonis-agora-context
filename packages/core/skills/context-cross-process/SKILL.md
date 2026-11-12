@@ -3,7 +3,8 @@ name: context-cross-process
 description: >-
   Carry @adonis-agora/context across process boundaries where AsyncLocalStorage
   dies: Context.serialize() / Context.deserialize(carrier, fn) with the
-  ContextCarrier snapshot ({ traceId, tenantId?, userRef? }), the two-line
+  ContextCarrier snapshot ({ traceId, tenantId?, userRef?, tenant?,
+  tenantFamilies? — the last two ride whenever tenancy is enabled }), the two-line
   @adonisjs/queue pattern (__ctx payload field on dispatch, deserialize in the
   job handler), ace-command Context.run, Context.bind() for setTimeout /
   EventEmitter blind spots, W3C baggage via toBaggage / fromBaggage plus the
@@ -108,11 +109,13 @@ Instead of (or alongside) the bespoke carrier, the context can ride a real W3C
 ```ts
 import { Context } from '@adonis-agora/context'
 
-// Build a baggage header from the active context ('tenantId=t1,userRef=user%3A42').
+// Build a baggage header from the active context ('tenantId=t1,userRef=user%3A42',
+// plus 'tenantKind=<kind>' when tenancy is enabled and the kind is known).
 const header = Context.toBaggage()
 
 // Re-hydrate inside an inbound baggage header. Baggage has no trace id, so it
-// is seeded from `traceparent` when supplied, else a fresh random id.
+// is seeded from `traceparent` when supplied, else a fresh random id. A tenant
+// in incoming baggage is ignored unless `tenancy.trustBaggage` is set.
 Context.fromBaggage(req.headers.baggage, () => doTheWork(), {
   traceparent: req.headers.traceparent,
 })
@@ -298,7 +301,9 @@ export default defineConfig({
 ```
 
 Mechanism: the default carrier includes only `traceId` + `tenantId` +
-`userRef`; module augmentation declares a field but nothing puts it on the wire
+`userRef` — plus `tenant`/`tenantFamilies` whenever `tenancy.enabled` is true
+(the tenant rides every carrier then, even a `carrier` list or custom
+`serialize` that omits it); module augmentation declares a field but nothing puts it on the wire
 until it joins the `carrier` list or a full `serialize` override. Source:
 `docs/customization.mdx` (Level 4), `packages/core/src/context.ts`
 (`defaultSerialize`). Config details: see the `context-customization` skill.

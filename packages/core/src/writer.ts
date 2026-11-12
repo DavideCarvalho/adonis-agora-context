@@ -1,4 +1,11 @@
-import { Context, type ContextStore, ensureTraceId, type UserRef } from './context.js';
+import {
+  Context,
+  type ContextStore,
+  ensureTraceId,
+  syncTenantFields,
+  type UserRef,
+} from './context.js';
+import type { TenantInput } from './tenancy.js';
 
 /**
  * The patch a {@link ContextWriter} merges into the active store. The known
@@ -9,6 +16,8 @@ import { Context, type ContextStore, ensureTraceId, type UserRef } from './conte
 export interface ContextSetPatch {
   userRef?: UserRef;
   tenantId?: string;
+  /** The active tenant. Also sets `tenantId`; `null` clears both. */
+  tenant?: TenantInput | null;
   [k: string]: unknown;
 }
 
@@ -30,6 +39,15 @@ export interface ContextWriter {
 export const contextWriter: ContextWriter = {
   set(patch: ContextSetPatch): void {
     for (const key of Object.keys(patch)) {
+      if (key === 'tenant') {
+        // This slot never throws: a malformed tenant from another lib is dropped.
+        try {
+          Context.set('tenant', patch.tenant as ContextStore['tenant']);
+        } catch {
+          // ignored on purpose
+        }
+        continue;
+      }
       // Reuse Context.set so the active-store lookup + out-of-context no-op live
       // in one place. The cast bridges the open-ended patch to the keyed setter.
       Context.set(key as keyof ContextStore, patch[key] as ContextStore[keyof ContextStore]);
@@ -72,7 +90,14 @@ export function contextScope<T>(snapshot: Record<string, unknown> | undefined, f
   // exactly as `deserialize`/`fromCarrier` do for incoming carriers — so the
   // `ContextStore.traceId: string` invariant is upheld and never silently
   // produces an invalid store.
-  const store = ensureTraceId(snapshot as unknown as ContextStore);
+  let store = snapshot as unknown as ContextStore;
+  if (store.tenantScope !== undefined) {
+    // `Context.allTenants()` is an in-process bypass: work restored from a
+    // snapshot (a durable task, a deferred job) never inherits it.
+    store = { ...store };
+    delete store.tenantScope;
+  }
+  store = syncTenantFields(ensureTraceId(store));
   return Context.run(store, fn);
 }
 

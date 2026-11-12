@@ -55,7 +55,7 @@ The middleware now seeds a fresh context (with a `traceId`) on every request aut
 import { Context } from '@adonis-agora/context'
 
 Context.set('userRef', { type: 'user', id: user.id })
-// Context.set('tenantId', user.tenantId) // if you're multi-tenant
+// Context.setTenant({ id: org.id, kind: 'organization' }) // if you're multi-tenant
 ```
 
 </Step>
@@ -95,7 +95,7 @@ The store carries a handful of values the rest of the libraries care about, expo
 | What | Accessor | Who reads it |
 |------|----------|--------------|
 | The acting principal (`{ type, id }`) | `Context.userRef()` | authz — the *causer* of every change |
-| The active tenant | `Context.tenantId()` | filter — scopes queries to the tenant automatically |
+| The active tenant | `Context.tenant()` / `Context.tenantId()` | every lib, once [tenancy](/docs/context/tenancy) is on — scopes their data to the tenant |
 | A correlation id for the request | `Context.traceId()` | [diagnostics](/docs/diagnostics) / [durable](/docs/durable) — correlate logs, spans and workflows |
 
 Notice the pattern: **the context library never decides anything.** It does not authenticate, it does not pick a tenant, it does not log. Some other layer resolves those values and *sets* them; this library is the shared place they live so everyone else can *read* them.
