@@ -223,6 +223,8 @@ export function ensureTraceId(store: ContextStore): ContextStore {
 function fromCarrier(carrier: ContextCarrier): ContextStore {
   if (config.deserialize) {
     const custom = ensureTraceId(config.deserialize(carrier));
+    // The admin bypass never crosses a boundary, whatever a custom deserialize returns.
+    delete custom.tenantScope;
     // With tenancy on the tenant always crosses the boundary, even through a
     // custom `deserialize` that does not know about it.
     if (tenancy.enabled && custom.tenantId === undefined && custom.tenant === undefined) {
@@ -562,7 +564,7 @@ export const Context = {
    * Run `fn` with `input` as the active tenant. Works with or without an active
    * context (a fresh one is created for ace commands, seeders, webhook handlers
    * and tests). The outer context is left untouched. `null` runs `fn` with no
-   * tenant.
+   * tenant (in any family).
    */
   withTenant<T>(input: TenantInput | null, fn: () => T, options?: SetTenantOptions): T {
     const base = als.getStore();
@@ -570,6 +572,10 @@ export const Context = {
     delete store.tenantScope;
     if (store.tenantFamilies !== undefined) {
       store.tenantFamilies = [...store.tenantFamilies];
+    }
+    if (input === null && options?.family === undefined) {
+      // `withTenant(null, fn)` runs `fn` with no tenant at all, in any family.
+      delete store.tenantFamilies;
     }
     writeTenant(store, input, options?.family);
     return als.run(store, fn);
@@ -748,7 +754,11 @@ export const Context = {
     }
     if (config.serialize) {
       const carrier = config.serialize(store);
-      return carrier ? addTenantToCarrier(store, carrier) : carrier;
+      if (!carrier) {
+        return carrier;
+      }
+      delete (carrier as { tenantScope?: unknown }).tenantScope;
+      return addTenantToCarrier(store, carrier);
     }
     return defaultSerialize(store);
   },
@@ -836,8 +846,6 @@ export const Context = {
           const kind = keys.tenantKind === false ? undefined : decoded[keys.tenantKind];
           store.tenant = { id: tenantId, kind: kind || 'unknown', source: 'baggage' };
         }
-      } else if (tenantId !== undefined) {
-        store.tenantId = tenantId;
       }
     }
     if (keys.userRef !== false) {

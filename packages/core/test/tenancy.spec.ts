@@ -421,3 +421,50 @@ describe('ContextProvider', () => {
     expect(info).not.toHaveBeenCalled();
   });
 });
+
+describe('review fixes', () => {
+  it('a custom serialize/deserialize never carries the allTenants bypass', () => {
+    Context.configure({
+      tenancy: { enabled: true },
+      serialize: (store) => ({ ...store }) as never,
+      deserialize: (carrier) => ({ ...carrier }) as never,
+    });
+    Context.run({ traceId: 't', tenantId: 'org' }, () => {
+      Context.allTenants(() => {
+        const carrier = Context.serialize();
+        expect(carrier).not.toHaveProperty('tenantScope');
+        Context.deserialize({ ...carrier, tenantScope: 'all' } as never, () => {
+          expect(Context.tenantFilter()).toMatchObject({ mode: 'tenant' });
+        });
+      });
+    });
+  });
+
+  it('the :set slot drops a malformed tenant instead of throwing', () => {
+    Context.run({ traceId: 't' }, () => {
+      expect(() =>
+        set({ tenant: { id: '', kind: 'organization' }, userRef: { type: 'user', id: 1 } }),
+      ).not.toThrow();
+      expect(Context.tenant()).toBeUndefined();
+      expect(Context.userRef()).toEqual({ type: 'user', id: 1 });
+    });
+  });
+
+  it('an empty tenantId in baggage is ignored', () => {
+    Context.fromBaggage('tenantId=', () => {
+      expect(Context.tenantId()).toBeUndefined();
+    });
+  });
+
+  it('withTenant(null) clears every family', () => {
+    Context.run({ traceId: 't' }, () => {
+      Context.setTenant({ id: 'c1', kind: 'clinic' });
+      Context.setTenant({ id: 'acc', kind: 'account' }, { family: 'account' });
+      Context.withTenant(null, () => {
+        expect(Context.tenants()).toEqual([]);
+        expect(Context.tenantFilter({ family: 'account' })).toEqual({ mode: 'tenantless' });
+      });
+      expect(Context.tenants()).toHaveLength(2);
+    });
+  });
+});

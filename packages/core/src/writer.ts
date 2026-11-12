@@ -39,6 +39,15 @@ export interface ContextWriter {
 export const contextWriter: ContextWriter = {
   set(patch: ContextSetPatch): void {
     for (const key of Object.keys(patch)) {
+      if (key === 'tenant') {
+        // This slot never throws: a malformed tenant from another lib is dropped.
+        try {
+          Context.set('tenant', patch.tenant as ContextStore['tenant']);
+        } catch {
+          // ignored on purpose
+        }
+        continue;
+      }
       // Reuse Context.set so the active-store lookup + out-of-context no-op live
       // in one place. The cast bridges the open-ended patch to the keyed setter.
       Context.set(key as keyof ContextStore, patch[key] as ContextStore[keyof ContextStore]);
