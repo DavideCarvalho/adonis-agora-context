@@ -1,5 +1,11 @@
 # @adonis-agora/context
 
+## 1.0.0-rc.2
+
+### Minor Changes
+
+- [#135](https://github.com/DavideCarvalho/adonis-agora-context/pull/135) [`445c687`](https://github.com/DavideCarvalho/adonis-agora-context/commit/445c687399d1fbbd6b6e4d23d237edc4ed9693b8) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - `node ace agora:doctor` and `node ace context:doctor`: one health check for every installed `@adonis-agora` lib. Context adds the checks `context.middleware`, `context.single-copy`, `context.tenancy`, `context.trust-baggage` and `context.carrier`. `node ace configure @adonis-agora/context` now registers `@adonis-agora/context/commands` in `adonisrc.ts`; existing apps add that line by hand.
+
 ## 1.0.0-rc.1
 
 ### Minor Changes
