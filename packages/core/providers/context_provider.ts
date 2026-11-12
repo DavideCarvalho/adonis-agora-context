@@ -40,13 +40,16 @@ function announceTenancy(config: ContextConfig): void {
   if (config.tenancy?.enabled !== true) {
     return;
   }
-  const carrier = config.carrier;
-  const listsTenant =
-    config.serialize === undefined &&
-    (carrier === undefined || (carrier.includes('tenantId') && carrier.includes('tenant')));
-  if (!listsTenant) {
+  if (config.serialize !== undefined) {
     console.info(
-      '[@adonis-agora/context] tenancy is enabled: the tenant (tenant, tenantId) is added to every carrier, even though `carrier`/`serialize` in config/context.ts does not list it.',
+      '[@adonis-agora/context] tenancy is enabled: the tenant (tenant, tenantId) is added to the output of your custom `serialize` when it is missing.',
+    );
+    return;
+  }
+  const carrier = config.carrier;
+  if (carrier !== undefined && !(carrier.includes('tenantId') && carrier.includes('tenant'))) {
+    console.info(
+      '[@adonis-agora/context] tenancy is enabled: the tenant (tenant, tenantId) is added to every carrier, even though `carrier` in config/context.ts does not list it.',
     );
   }
 }
