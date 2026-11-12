@@ -1,4 +1,4 @@
-import { Context, type ContextStore } from '../context.js';
+import { Context, type ContextStore, syncTenantFields } from '../context.js';
 import { randomTraceId } from '../traceparent.js';
 
 /** Everything but `traceId` is optional; `traceId` is auto-filled when omitted. */
@@ -6,7 +6,7 @@ export type PartialContextStore = Partial<ContextStore>;
 
 function withDefaults(partial: PartialContextStore): ContextStore {
   const { traceId, ...rest } = partial;
-  return { traceId: traceId ?? randomTraceId(), ...rest };
+  return syncTenantFields({ traceId: traceId ?? randomTraceId(), ...rest });
 }
 
 /**

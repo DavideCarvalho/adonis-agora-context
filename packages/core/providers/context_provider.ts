@@ -27,6 +27,26 @@ export default class ContextProvider {
     // Hand the population hooks (traceHeader/traceId/initialize/enrichers) to the
     // middleware via its module-level holder.
     setContextHttpOptions(config);
+    announceTenancy(config);
     await wireContextIntoDiagnostics();
+  }
+}
+
+/**
+ * One boot line when tenancy is on and the configured carrier would not carry
+ * the tenant by itself: the tenant is added anyway, and the app should know.
+ */
+function announceTenancy(config: ContextConfig): void {
+  if (config.tenancy?.enabled !== true) {
+    return;
+  }
+  const carrier = config.carrier;
+  const listsTenant =
+    config.serialize === undefined &&
+    (carrier === undefined || (carrier.includes('tenantId') && carrier.includes('tenant')));
+  if (!listsTenant) {
+    console.info(
+      '[@adonis-agora/context] tenancy is enabled: the tenant (tenant, tenantId) is added to every carrier, even though `carrier`/`serialize` in config/context.ts does not list it.',
+    );
   }
 }

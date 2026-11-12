@@ -8,8 +8,8 @@ export const VERSION = '1.0.0-rc.0';
 
 // Re-export the configure hook from the package root so `node ace configure` finds it
 export { configure } from '../configure.js';
-export type { ContextAccessor } from './accessor.js';
-export { CONTEXT_ACCESSOR, contextAccessor } from './accessor.js';
+export type { ContextAccessor, TenancySlot } from './accessor.js';
+export { CONTEXT_ACCESSOR, CONTEXT_TENANCY, contextAccessor, tenancySlot } from './accessor.js';
 export {
   type Baggage,
   type BaggageKeyMap,
@@ -27,6 +27,19 @@ export type {
 export { Context } from './context.js';
 export type { ContextConfig } from './define_config.js';
 export { defineConfig } from './define_config.js';
+export type {
+  ResolvedTenancy,
+  SetTenantOptions,
+  TenancyConfig,
+  TenantFilter,
+  TenantFilterOptions,
+  TenantInput,
+  TenantLabelResolver,
+  TenantLevel,
+  TenantRef,
+  TenantSource,
+} from './tenancy.js';
+export { TenantRequiredError } from './tenancy.js';
 export type { ParsedTraceparent } from './traceparent.js';
 export {
   extractTraceparent,

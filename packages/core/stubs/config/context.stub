@@ -82,4 +82,26 @@ export default defineConfig({
    * never propagate that field over baggage. Independent of "carrier" above.
    */
   // baggage: {},
+
+  // -- tenancy: scope every @adonis-agora lib by the active tenant (organization) --
+
+  /**
+   * Off by default. With enabled: true, every @adonis-agora lib whose own
+   * "tenancy" option is left at 'inherit' scopes its data by the active tenant,
+   * and the tenant rides every carrier (queue, durable) even if "carrier" above
+   * does not list it. Set the tenant with Context.setTenant() (authkit does it
+   * for you from the active organization).
+   *
+   * kinds:    only honour tenants of these kinds (e.g. ['organization']).
+   * required: a lib that needs a tenant throws E_TENANT_REQUIRED instead of
+   *           falling back to the rows that have no tenant.
+   * personal: with no tenant, use the signed-in user as a { kind: 'user' } tenant.
+   * label:    display names for tenant ids, used by the consoles' organization picker.
+   */
+  // tenancy: {
+  //   enabled: true,
+  //   kinds: ['organization'],
+  //   required: false,
+  //   personal: false,
+  // },
 })

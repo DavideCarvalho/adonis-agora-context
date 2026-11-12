@@ -1,4 +1,11 @@
-import { Context, type ContextStore, ensureTraceId, type UserRef } from './context.js';
+import {
+  Context,
+  type ContextStore,
+  ensureTraceId,
+  syncTenantFields,
+  type UserRef,
+} from './context.js';
+import type { TenantInput } from './tenancy.js';
 
 /**
  * The patch a {@link ContextWriter} merges into the active store. The known
@@ -9,6 +16,8 @@ import { Context, type ContextStore, ensureTraceId, type UserRef } from './conte
 export interface ContextSetPatch {
   userRef?: UserRef;
   tenantId?: string;
+  /** The active tenant. Also sets `tenantId`; `null` clears both. */
+  tenant?: TenantInput | null;
   [k: string]: unknown;
 }
 
@@ -72,7 +81,14 @@ export function contextScope<T>(snapshot: Record<string, unknown> | undefined, f
   // exactly as `deserialize`/`fromCarrier` do for incoming carriers — so the
   // `ContextStore.traceId: string` invariant is upheld and never silently
   // produces an invalid store.
-  const store = ensureTraceId(snapshot as unknown as ContextStore);
+  let store = snapshot as unknown as ContextStore;
+  if (store.tenantScope !== undefined) {
+    // `Context.allTenants()` is an in-process bypass: work restored from a
+    // snapshot (a durable task, a deferred job) never inherits it.
+    store = { ...store };
+    delete store.tenantScope;
+  }
+  store = syncTenantFields(ensureTraceId(store));
   return Context.run(store, fn);
 }
 

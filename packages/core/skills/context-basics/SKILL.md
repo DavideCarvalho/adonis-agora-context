@@ -201,6 +201,33 @@ export default class Reconcile extends BaseCommand {
 
 Source: `docs/cross-process.mdx` (ace commands), `docs/getting-started.mdx` (Why enterWith, not run).
 
+### Pattern 5 — tenancy: scope every Agora lib by the active organization
+
+```ts
+// config/context.ts
+export default defineConfig({ tenancy: { enabled: true, kinds: ['organization'] } })
+```
+
+authkit publishes the active organization as the tenant. Without authkit, set it
+in a middleware after resolving (and checking membership of) the tenant:
+
+```ts
+Context.setTenant({ id: clinic.id, kind: 'clinic' })            // also sets tenantId
+Context.setTenant({ id: unit.id, kind: 'unit', chain: [{ id: clinic.id, kind: 'clinic' }] })
+Context.setTenant({ id: account.id, kind: 'account' }, { family: 'account' })
+Context.tenant()            // { id, kind, source, slug?, role?, chain?, family? }
+Context.requireTenant()     // or throws E_TENANT_REQUIRED (403)
+await Context.withTenant({ id, kind: 'organization' }, () => work())  // ace, seeders, webhooks, tests
+await Context.allTenants(() => adminWork())                          // the only bypass
+Context.tenantFilter({ kinds })  // { mode: 'system' | 'all' | 'tenantless' | 'tenant', tenant?, chain? }
+```
+
+With `tenancy.enabled`, `Context.serialize()` always includes the tenant.
+Options: `kinds`, `required` (missing tenant = error), `personal` (user as
+`kind: 'user'` tenant), `trustBaggage`, `label`. Libs read it from the
+`Symbol.for('@agora/context:tenancy')` slot (`version: 1`) without importing
+this package. Never take the tenant from a client header.
+
 ## Common mistakes
 
 ### CRITICAL — Stamping `Context.set()` where no context is active

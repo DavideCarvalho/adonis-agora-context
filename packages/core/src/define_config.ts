@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import type { BaggageKeyMap } from './baggage.js';
 import type { ContextCarrier, ContextEnricher, ContextStore } from './context.js';
+import type { TenancyConfig } from './tenancy.js';
 
 /**
  * The shape of `config/context.ts` — the AdonisJS counterpart of the NestJS
@@ -70,6 +71,15 @@ export interface ContextConfig {
    * carrier above.
    */
   baggage?: BaggageKeyMap;
+
+  // — tenancy —
+
+  /**
+   * Scope data by the active tenant (organization) across every Agora lib.
+   * Off by default: nothing changes until `enabled: true`. When on, the
+   * tenant always rides the carrier, even if `carrier` does not list it.
+   */
+  tenancy?: TenancyConfig;
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import type { NextFn } from '@adonisjs/core/types/http';
-import { Context, type ContextStore } from './context.js';
+import { Context, type ContextStore, syncTenantFields } from './context.js';
 import { getContextHttpOptions } from './define_config.js';
 import { parseTraceparent, randomTraceId } from './traceparent.js';
 
@@ -44,6 +44,7 @@ export default class ContextMiddleware {
       store.traceparent = upstream;
     }
 
+    syncTenantFields(store);
     Context.enterWith(store);
 
     // Eager enrichers: derive fields from the now-assembled store right after
@@ -61,6 +62,7 @@ export default class ContextMiddleware {
           // An enricher must never break the request or the other enrichers.
         }
       }
+      syncTenantFields(store);
     }
 
     return next();

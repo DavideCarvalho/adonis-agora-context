@@ -1,0 +1,265 @@
+---
+title: Tenancy
+description: Turn on tenancy once in config/context.ts and every Agora lib scopes its data by the active organization. Set the tenant, run code as a tenant, read across tenants, and carry the tenant into jobs.
+icon: Building2
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+A tenant is the customer a piece of data belongs to: an organization, a clinic, a family account. Once you turn tenancy on, every Agora lib (payments, media, durable, agent, telescope, authz and the consoles) reads the active tenant from the context and only shows that tenant's data, with no tenancy code in your app.
+
+Tenancy only ever narrows what a request can see. Each lib's own access rules still run, and the tenant check is added on top.
+
+---
+
+## Turn it on
+
+```ts
+// config/context.ts
+import { defineConfig } from '@adonis-agora/context'
+
+export default defineConfig({
+  tenancy: {
+    enabled: true,
+    kinds: ['organization'],
+  },
+})
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `enabled` | `false` | The single switch. Every lib whose own `tenancy` option is `'inherit'` (their default) follows it. |
+| `kinds` | all kinds | Only tenants of these kinds count. A tenant of another kind is treated as no tenant. |
+| `required` | `false` | A lib that needs a tenant throws `E_TENANT_REQUIRED` (HTTP 403) instead of using the rows that have no tenant. |
+| `personal` | `false` | With no tenant, the signed-in user (`userRef`) becomes a `{ kind: 'user' }` tenant, so personal workspaces are tenants too. Add `'user'` to `kinds` if you set `kinds`. |
+| `trustBaggage` | `false` | Accept a tenant from an incoming W3C `baggage` header. Only for service-to-service calls behind a gateway you trust. |
+| `label` | none | `(ids, { kind }) => Record<id, name>`: names shown in the consoles' organization picker. |
+
+Nothing changes until `enabled` is `true`. A lib can opt out with `tenancy: false` in its own config.
+
+---
+
+## Where the tenant comes from
+
+**With authkit**, you write nothing: the active organization of the session becomes the tenant, with its slug and the user's role in it.
+
+**Without authkit**, set it once in a middleware, after you know who the user is and which tenant they picked:
+
+```ts
+// app/middleware/clinic_middleware.ts
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+import { Context } from '@adonis-agora/context'
+
+export default class ClinicMiddleware {
+  async handle({ auth, session }: HttpContext, next: NextFn) {
+    const user = auth.getUserOrFail()
+    const clinic = await user.related('clinics').query()
+      .where('clinics.id', session.get('clinicId'))
+      .firstOrFail()
+
+    Context.setTenant({ id: clinic.id, kind: 'clinic', slug: clinic.slug })
+    return next()
+  }
+}
+```
+
+Always resolve the tenant on the server, from the session or a verified token, and check that the user belongs to it. Never take it straight from a request header or query string.
+
+`Context.setTenant(null)` clears it.
+
+### Nested tenants
+
+When tenants nest, set the most specific one and pass the levels above it in `chain`, outermost first:
+
+```ts
+Context.setTenant({
+  id: unit.id,
+  kind: 'unit',
+  chain: [{ id: clinic.id, kind: 'clinic' }],
+})
+
+Context.tenant()       // { id: unit.id, kind: 'unit', chain: [clinic, unit], source: 'app' }
+Context.tenantChain()  // [{ id: clinic.id, kind: 'clinic' }, { id: unit.id, kind: 'unit' }]
+```
+
+A lib configured with `kinds: ['clinic']` scopes by the clinic; one configured with `kinds: ['unit']` scopes by the unit.
+
+### More than one family
+
+A request can belong to tenants of different families, for example a clinic and the patient's family account. Set the main one as usual and the others with a `family` name:
+
+```ts
+Context.setTenant({ id: clinic.id, kind: 'clinic' })
+Context.setTenant({ id: account.id, kind: 'account' }, { family: 'account' })
+
+Context.tenantId()           // clinic.id (the main tenant)
+Context.tenants()            // [clinic, account]
+Context.tenantChain('account')
+```
+
+A lib configured with `kinds: ['account']` picks the account.
+
+---
+
+## Reading the tenant
+
+```ts
+import { Context } from '@adonis-agora/context'
+
+Context.tenant()      // TenantRef | undefined
+Context.tenantId()    // string | undefined, always tenant()?.id
+Context.requireTenant() // TenantRef, or throws E_TENANT_REQUIRED
+```
+
+```ts
+interface TenantRef {
+  id: string
+  kind: 'organization' | 'user' | 'unknown' | string
+  source: 'authkit' | 'app' | 'carrier' | 'baggage' | 'personal' | 'legacy' | string
+  slug?: string    // for display only
+  role?: string    // the user's role in this tenant
+  chain?: { id: string; kind: string; slug?: string; role?: string }[]
+  family?: string
+}
+```
+
+`tenantId` and `tenant` always agree. If only a plain `tenantId` is set (for example by `initialize` in `config/context.ts`), `Context.tenant()` returns `{ id, kind: 'unknown', source: 'legacy' }`.
+
+For routes that only make sense inside an organization:
+
+```ts
+// app/controllers/projects_controller.ts
+import type { HttpContext } from '@adonisjs/core/http'
+import { Context } from '@adonis-agora/context'
+import Project from '#models/project'
+
+export default class ProjectsController {
+  async index({ inertia }: HttpContext) {
+    const org = Context.requireTenant({ kinds: ['organization'] })
+    const projects = await Project.query().where('organization_id', org.id)
+    return inertia.render('projects/index', { projects })
+  }
+}
+```
+
+`E_TENANT_REQUIRED` renders as a 403. Handle it in your exception handler if you want to redirect to an organization picker instead.
+
+---
+
+## Running code as a tenant
+
+Ace commands, seeders, webhook handlers and tests have no request, so no tenant. Use `Context.withTenant`:
+
+```ts
+// commands/send_monthly_report.ts
+import { BaseCommand, flags } from '@adonisjs/core/ace'
+import { Context } from '@adonis-agora/context'
+
+export default class SendMonthlyReport extends BaseCommand {
+  static commandName = 'reports:monthly'
+  static options = { startApp: true }
+
+  @flags.string({ description: 'Organization id' })
+  declare tenant: string
+
+  async run() {
+    await Context.withTenant({ id: this.tenant, kind: 'organization' }, async () => {
+      const { default: ReportService } = await import('#services/report_service')
+      await new ReportService().sendMonthly()
+    })
+  }
+}
+```
+
+`withTenant` creates a context when there is none and never touches the outer one. Jobs, durable runs and media uploads started inside are stamped with that tenant.
+
+---
+
+## Reading across tenants
+
+Admin code that must see every tenant says so explicitly:
+
+```ts
+// app/controllers/admin/failed_runs_controller.ts
+import type { HttpContext } from '@adonisjs/core/http'
+import { Context } from '@adonis-agora/context'
+import engine from '@adonis-agora/durable/services/main'
+
+export default class FailedRunsController {
+  async index({ inertia }: HttpContext) {
+    const runs = await Context.allTenants(() => engine.listRuns({ status: 'failed' }))
+    return inertia.render('admin/failed_runs', { runs })
+  }
+}
+```
+
+Inside `Context.allTenants()` every lib sees all rows, including rows with no tenant. Keep it to admin code behind your own authorization. Jobs and durable runs started inside it run with the request's own tenant, not "all".
+
+---
+
+## Jobs and other processes
+
+With tenancy on, the tenant (including its chain and other families) always travels in `Context.serialize()`, even if your `carrier` list does not name it:
+
+```ts
+// app/controllers/invoices_controller.ts
+await queue.dispatch('send-invoice', { invoiceId, __ctx: Context.serialize() })
+
+// app/jobs/send_invoice_job.ts
+async handle(payload: InvoicePayload & { __ctx?: ContextCarrier }) {
+  return Context.deserialize(payload.__ctx, () => this.send(payload))
+  // Context.tenant() here is the tenant of the request that dispatched the job
+}
+```
+
+Durable runs carry the tenant on their own. Outgoing service-to-service calls send `tenantId` and `tenantKind` in `Context.toBaggage()`; the receiving app only reads them with `trustBaggage: true`.
+
+---
+
+## How libs scope data
+
+Every lib asks the context the same question and applies the same rule. You do not need this to use tenancy, but it explains what you will see:
+
+| Situation | The lib sees |
+| --- | --- |
+| A request with a tenant | That tenant's rows. New rows are stamped with it. |
+| A request with no tenant (an orgless user) | Only rows that have no tenant. |
+| `Context.allTenants()` | Every row. |
+| No context at all (boot, internal workers) | Every row. Libs do not filter their own background work. |
+
+A row of another tenant is reported as not found, never as forbidden.
+
+If you write your own tenant-aware code, ask the same way:
+
+```ts
+const filter = Context.tenantFilter({ kinds: ['organization'] })
+// { mode: 'tenant', tenant, chain } | { mode: 'tenantless' } | { mode: 'all' } | { mode: 'system' }
+```
+
+<Callout type="info">
+  Libs read the tenant from a global slot, without importing `@adonis-agora/context`. Each lib keeps working on its own: without context installed, or with tenancy off, nothing is filtered.
+</Callout>
+
+---
+
+## Testing
+
+```ts
+import { test } from '@japa/runner'
+import { Context } from '@adonis-agora/context'
+import engine from '@adonis-agora/durable/services/main'
+
+test('runs started by one organization are invisible to another', async ({ assert }) => {
+  await Context.withTenant({ id: 'org_a', kind: 'organization' }, () =>
+    engine.start('send-invoice', { invoiceId: 1 }),
+  )
+
+  const runs = await Context.withTenant({ id: 'org_b', kind: 'organization' }, () =>
+    engine.listRuns({ workflow: 'send-invoice' }),
+  )
+  assert.lengthOf(runs, 0)
+})
+```
+
+`runWithContext({ tenant: { id: 'org_a', kind: 'organization', source: 'app' } }, fn)` from `@adonis-agora/context/testing` works too.
