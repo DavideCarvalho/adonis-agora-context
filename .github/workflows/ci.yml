@@ -32,6 +32,9 @@ jobs:
 
       - run: pnpm check:package
 
+      - name: Check agora:doctor copy
+        run: pnpm --filter @adonis-agora/context check:agora-doctor
+
   # Lint, typecheck and build run once on the pinned version above; only the test
   # suite fans out across every Node line we support (24 and 26: maintained by Node and accepted by AdonisJS 7).
   test:

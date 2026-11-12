@@ -2,6 +2,7 @@ import type { ApplicationService } from '@adonisjs/core/types';
 import { Context } from '../src/context.js';
 import { type ContextConfig, setContextHttpOptions } from '../src/define_config.js';
 import { wireContextIntoDiagnostics } from '../src/diagnostics_bridge.js';
+import { registerContextDoctorChecks } from '../src/doctor/checks.js';
 
 /**
  * Wires `@adonis-agora/context` into the AdonisJS application.
@@ -17,6 +18,11 @@ import { wireContextIntoDiagnostics } from '../src/diagnostics_bridge.js';
  */
 export default class ContextProvider {
   constructor(protected app: ApplicationService) {}
+
+  register() {
+    // Health checks for `node ace agora:doctor` (descriptors only; they read config when run).
+    void registerContextDoctorChecks(this.app);
+  }
 
   async boot() {
     const config = this.app.config.get<ContextConfig>('context', {});

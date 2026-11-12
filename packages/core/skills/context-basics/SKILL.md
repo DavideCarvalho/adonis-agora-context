@@ -45,7 +45,10 @@ node ace add @adonis-agora/context
 `add` installs the package and runs `node ace configure`, which runs three
 codemods with zero manual wiring:
 
-1. registers the provider (`@adonis-agora/context/context_provider`) in `adonisrc.ts`;
+1. registers the provider (`@adonis-agora/context/context_provider`) and the
+   commands (`@adonis-agora/context/commands`) in `adonisrc.ts` — apps
+   configured before the commands existed add
+   `() => import('@adonis-agora/context/commands')` to `commands` by hand;
 2. registers the context middleware (`@adonis-agora/context/context_middleware`)
    on the **server** middleware stack;
 3. publishes `config/context.ts` from a stub.
