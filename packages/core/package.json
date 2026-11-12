@@ -57,6 +57,16 @@
       "types": "./dist/configure.d.ts",
       "import": "./dist/configure.js",
       "default": "./dist/configure.js"
+    },
+    "./commands": {
+      "types": "./dist/commands/main.d.ts",
+      "import": "./dist/commands/main.js",
+      "default": "./dist/commands/main.js"
+    },
+    "./doctor": {
+      "types": "./dist/src/doctor/checks.d.ts",
+      "import": "./dist/src/doctor/checks.js",
+      "default": "./dist/src/doctor/checks.js"
     }
   },
   "files": [
@@ -77,12 +87,13 @@
     "**/writer.ts"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && pnpm run copy:stubs",
+    "build": "tsc -p tsconfig.json && node scripts/index-commands.mjs && pnpm run copy:stubs",
     "copy:stubs": "mkdir -p dist/stubs/config && cp stubs/config/context.stub dist/stubs/config/context.stub",
     "prepack": "pnpm run build",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:agora-doctor": "node ../../scripts/check-agora-doctor.mjs ."
   },
   "peerDependencies": {
     "@adonisjs/core": "^7.3.0"

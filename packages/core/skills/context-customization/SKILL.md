@@ -359,7 +359,8 @@ export default defineConfig({
 
 Mechanism: module augmentation is a compile-time contract only — it tells
 TypeScript the field exists, populates nothing, and adds nothing to the wire;
-the default carrier stays `traceId` + `tenantId` + `userRef`. Source:
+the default carrier stays `traceId` + `tenantId` + `userRef`
+(+ `tenant`/`tenantFamilies` when `tenancy.enabled`). Source:
 `docs/the-store.mdx` (module-augmentation warn callout),
 `docs/customization.mdx` (Levels 1–4).
 

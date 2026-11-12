@@ -173,6 +173,40 @@ To get the same correlation outside HTTP, give the worker or command a context f
 
 ---
 
+## Health check
+
+`node ace configure @adonis-agora/context` also registers the `agora:doctor` command, which checks every installed `@adonis-agora` lib at once:
+
+```sh
+node ace agora:doctor                  # all libs
+node ace context:doctor                # this lib only
+node ace agora:doctor --json --strict  # in CI: fail on warnings too
+```
+
+On an app configured before this command existed, add the commands to `adonisrc.ts`:
+
+```ts
+// adonisrc.ts
+commands: [
+  () => import('@adonisjs/core/commands'),
+  () => import('@adonis-agora/context/commands'),
+],
+```
+
+Checks this lib adds:
+
+| Id | What it checks |
+| --- | --- |
+| `context.middleware` | `context_middleware` is on the server stack in `start/kernel.ts`. |
+| `context.single-copy` | Only one copy of `@adonis-agora/context` is loaded. |
+| `context.tenancy` | `tenancy` options are coherent (`kinds` set and not empty, `personal` allowed by `kinds`, no options left without `enabled`). |
+| `context.trust-baggage` | `tenancy.trustBaggage` is not on in production without a reason. |
+| `context.carrier` | `serialize` and `deserialize` are customized together. |
+
+Exit codes: `0` no errors, `1` at least one error (or a warning with `--strict`), `2` the doctor could not run.
+
+---
+
 ## Why `enterWith`, not `run`
 
 This is the one design choice worth understanding, because it explains how a *middleware* can establish a context that survives into your *async handlers*.
