@@ -10,7 +10,7 @@ description: >-
   EventEmitter blind spots, W3C baggage via toBaggage / fromBaggage plus the
   encodeBaggage / decodeBaggage / encodeUserRef / decodeUserRef codecs, the
   traceparent helpers extractTraceparent / parseTraceparent / toTraceparent,
-  and automatic propagation through @adonis-agora/durable ctx.call. Use for
+  and automatic propagation through @adonis-agora/durable ctx.step. Use for
   "queue worker loses the current user/tenant", "pass context to a background
   job", "propagate traceId across services", or "baggage header".
 metadata:
@@ -183,19 +183,21 @@ Source: `docs/the-store.mdx` (traceId invariant section),
 ### Pattern 5 — durable needs zero lines
 
 Across `@adonis-agora/durable` you write no serialize/deserialize calls:
-`ctx.call(remoteStep, input)` snapshots the active context onto the
+`ctx.step(step, input)` snapshots the active context onto the
 `RemoteTask`, ships it, and restores it via the scoped
-`Symbol.for('@agora/context:scope')` slot before invoking your handler — even
-when that handler runs in another process or language.
+`Symbol.for('@agora/context:scope')` slot before invoking your step handler —
+even when that handler runs in another process or language.
 
 ```ts
-// Worker-side handler — NO deserialize here; durable already restored the context.
-transport.handle('payments.charge-card', async (input) => {
+// app/steps/charge_card.ts — NO deserialize here; durable already restored the context.
+export const chargeCard = defineStep('payments:charge-card', async (input) => {
   Context.userRef()  // the user who started the workflow
   Context.tenantId() // their tenant
   Context.traceId()  // the originating request's trace id
   return { chargeId: await charge(input) }
 })
+
+// in the workflow: await ctx.step(chargeCard, input)
 ```
 
 Raw queue: two lines you write. Durable: zero lines. Same snapshot semantics

@@ -159,44 +159,75 @@ Arguments, `this`, and the return value all pass through unchanged. If nothing i
 
 ## `@adonis-agora/durable` propagates context automatically
 
-The queue pattern above is manual because a raw queue is a third-party boundary. [`@adonis-agora/durable`](/docs/durable) is different: it is a **first-party Agora library**, and it propagates the context across the remote-step boundary **for you**. You write **zero** serialize/deserialize calls.
+The queue pattern above is manual because a raw queue is a third-party boundary. [`@adonis-agora/durable`](/docs/durable) is different: it is a **first-party Agora library**, and it propagates the context across the step boundary **for you**. You write **zero** serialize/deserialize calls.
 
-When a workflow runs a remote step with `ctx.call(...)`, durable **snapshots the active Agora context onto the `RemoteTask`** as it dispatches, ships it across the transport to wherever the handler lives — another Node process, or even a Python worker — and **restores it (via the scoped `@agora/context:scope` slot) before invoking the handler**.
+When a workflow dispatches a step with `ctx.step(...)`, durable **snapshots the active Agora context onto the `RemoteTask`** it sends, ships it across the transport to wherever the step handler is served (another Node process, or even a Python worker), and **restores it before invoking the handler**.
 
-A remote step is two decoupled pieces that live in different processes: the **typed definition** (`remoteStep(...)`, imported wherever the workflow is authored) and the **handler** (registered separately on the worker-side transport). First the definition:
+The handler is a step under `app/steps`, served by name by whichever process runs the durable worker:
 
-```ts title="app/durable/steps.ts — the typed definition"
-import { remoteStep } from '@adonis-agora/durable'
-import { z } from 'zod'
-
-export const chargeCard = remoteStep({
-  name: 'payments.charge-card',
-  group: 'payments',
-  input: z.object({ orderId: z.string(), amountCents: z.number().int() }),
-  output: z.object({ chargeId: z.string() }),
-})
-
-// in the workflow body: const charge = await ctx.call(chargeCard, { orderId, amountCents })
-```
-
-The handler is registered **separately, on the worker-side transport** — a different process, which is exactly why durable has to restore the context there for you:
-
-```ts title="start/durable.ts (worker side) — the handler"
+```ts title="app/steps/charge_card.ts"
 import { Context } from '@adonis-agora/context'
+import { defineStep } from '@adonis-agora/durable'
+import { z } from 'zod'
+import Charge from '#models/charge'
 
-transport.handle('payments.charge-card', async (input: { orderId: string; amountCents: number }) => {
-  // No deserialize() here — durable already restored the originating request's context.
-  Context.userRef()  // the user who started the workflow
-  Context.tenantId() // their tenant
-  Context.traceId()  // the originating request's trace id
-  return { chargeId: await charge(input) }
-})
+export const chargeCard = defineStep(
+  'payments:charge-card',
+  async (input) => {
+    // No deserialize() here: durable already restored the originating request's context.
+    const charge = await Charge.create({
+      orderId: input.orderId,
+      amountCents: input.amountCents,
+      userId: Context.userRef()?.id, // the user who started the workflow
+      tenantId: Context.tenantId(),  // their tenant
+      traceId: Context.traceId(),    // the originating request's trace id
+    })
+    return { chargeId: charge.id }
+  },
+  {
+    input: z.object({ orderId: z.number().int(), amountCents: z.number().int() }),
+    output: z.object({ chargeId: z.number().int() }),
+  },
+)
 ```
 
-The handler sees the originating request's `userRef`, `tenantId` and `traceId` even though it runs in a different process. It knows not just *which trace* it belongs to but *who* and *which tenant* it is acting for — with no plumbing on your side.
+The workflow dispatches it by reference:
+
+```ts title="app/workflows/checkout_workflow.ts"
+import { BaseWorkflow } from '@adonis-agora/durable'
+import type { WorkflowCtx } from '@adonis-agora/durable'
+import { chargeCard } from '#steps/charge_card'
+
+export default class CheckoutWorkflow extends BaseWorkflow {
+  static workflow = { name: 'checkout', version: '1' }
+
+  async run(ctx: WorkflowCtx, order: { id: number; total: number }) {
+    return ctx.step(chargeCard, { orderId: order.id, amountCents: order.total })
+  }
+}
+```
+
+When the handler lives in another app or runtime, dispatch it by name instead: `ctx.step<{ chargeId: number }>('payments:charge-card', input)`. The context crosses the same way.
+
+The run starts in a controller, inside the request whose context durable carries:
+
+```ts title="app/controllers/checkout_controller.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+import CheckoutWorkflow from '#workflows/checkout_workflow'
+import Order from '#models/order'
+
+export default class CheckoutController {
+  async store({ request }: HttpContext) {
+    const order = await Order.create({ total: request.input('total') })
+    return CheckoutWorkflow.dispatch({ id: order.id, total: order.total })
+  }
+}
+```
+
+The step handler sees that request's `userRef`, `tenantId` and `traceId` even though it runs in a different process. It knows not just *which trace* it belongs to but *who* and *which tenant* it is acting for, with no plumbing on your side.
 
 <Callout type="info" title="Durable: zero lines. A raw queue: two lines.">
-  With `@adonis-agora/durable` you wire **nothing** — `ctx.call` carries and restores the context across the boundary on its own. With a raw `@adonisjs/queue` you wire **two lines**: `Context.serialize()` on dispatch and `Context.deserialize(...)` in the handler. Same snapshot semantics either way ([the carrier is dispatch-time history](#the-snapshot-caveat)); the only difference is who does the wiring.
+  With `@adonis-agora/durable` you wire **nothing**: `ctx.step` carries and restores the context across the boundary on its own. With a raw `@adonisjs/queue` you wire **two lines**: `Context.serialize()` on dispatch and `Context.deserialize(...)` in the handler. Same snapshot semantics either way ([the carrier is dispatch-time history](#the-snapshot-caveat)); the only difference is who does the wiring.
 </Callout>
 
 ### How durable carries it: the traceparent hook
@@ -300,7 +331,7 @@ The cross-process story is small on purpose — three concepts:
 2. You ship the carrier however your boundary already ships data — a queue payload field, the durable traceparent hook, a W3C baggage header.
 3. `deserialize(carrier, fn)` re-enters the store and runs your work inside it, with a trace-id safety net.
 
-Who does the wiring depends on the boundary: across [`@adonis-agora/durable`](/docs/durable) it's **automatic** (steps 1–3 happen for you inside `ctx.call`); across a raw `@adonisjs/queue` it's **two lines you write** (`serialize` on dispatch, `deserialize` in the handler).
+Who does the wiring depends on the boundary: across [`@adonis-agora/durable`](/docs/durable) it's **automatic** (steps 1–3 happen for you inside `ctx.step`); across a raw `@adonisjs/queue` it's **two lines you write** (`serialize` on dispatch, `deserialize` in the handler).
 
 And one rule to remember: **the carrier is a snapshot taken at dispatch time, not a live link to the present** — true whether durable wires it or you do.
 
