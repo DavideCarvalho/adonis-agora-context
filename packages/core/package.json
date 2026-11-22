@@ -100,7 +100,7 @@
   },
   "devDependencies": {
     "@adonisjs/assembler": "8.6.0",
-    "@adonisjs/core": "7.6.0",
+    "@adonisjs/core": "7.7.0",
     "@tanstack/intent": "0.5.6",
     "@types/node": "26.6.6",
     "typescript": "7.0.2",

@@ -212,8 +212,8 @@ importers:
         specifier: 8.6.0
         version: 8.6.0(typescript@7.0.2)
       '@adonisjs/core':
-        specifier: 7.6.0
-        version: 7.6.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)
+        specifier: 7.7.0
+        version: 7.7.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)
       '@tanstack/intent':
         specifier: 0.5.6
         version: 0.5.6
@@ -262,12 +262,12 @@ packages:
     resolution: {integrity: sha512-YVDRL8xHCtM6iMnAefOBaz6iXVpojwBPDQWPKxnVSucycYeNGrGitJiLy+cGaeAU7Gjm8al9SJRJt3rRPr5PKg==}
     engines: {node: '>=24.0.0'}
 
-  '@adonisjs/core@7.6.0':
-    resolution: {integrity: sha512-DGDkpoNrExwLhhmuzZBaOKe6wk67HI/0+3GLWsJXB+Ze4NjXuKKOT5169R2CqpSO6yvL1Xw39HwSJ9YJ1oTvLg==}
+  '@adonisjs/core@7.7.0':
+    resolution: {integrity: sha512-QlN8trMRvatDFIZNvUAVrG59utouX4dSYVB2RkX4vfyKcu5ozwwooKtIulGptoXRFu1ZWw4mfIgjs7xc/OvU6A==}
     engines: {node: '>=24.0.0'}
     hasBin: true
     peerDependencies:
-      '@adonisjs/assembler': ^8.0.0-next.23 || ^8.0.0
+      '@adonisjs/assembler': ^8.6.0
       '@vinejs/vine': ^4.0.0
       argon2: ^0.44.0 || ^0.45.1
       bcrypt: ^6.0.0
@@ -2376,7 +2376,7 @@ snapshots:
     dependencies:
       '@poppinss/utils': 7.1.2
 
-  '@adonisjs/core@7.6.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)':
+  '@adonisjs/core@7.7.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)':
     dependencies:
       '@adonisjs/ace': 14.1.1(youch@4.1.1)
       '@adonisjs/application': 9.1.1(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/config@6.1.0)(@adonisjs/fold@11.1.1)
