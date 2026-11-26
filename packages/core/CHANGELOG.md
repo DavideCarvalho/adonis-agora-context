@@ -1,5 +1,36 @@
 # @adonis-agora/context
 
+## 1.0.0
+
+### Major Changes
+
+- [`582709b`](https://github.com/DavideCarvalho/adonis-agora-context/commit/582709b4a37d24393b4ced79f2b57e11480b711f) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - **Security (behavior change):** `Context.fromBaggage()` no longer trusts identity from the incoming `baggage` header by default.
+  
+  A `baggage` header is unauthenticated: any client could send `tenantId=…,userRef=…` and pick the tenant (and with it the tenant database connection used by `tenantConnection`) and the user for the code running inside. Now `tenantId`, `tenantKind` and `userRef` are dropped unless the call opts in:
+  
+  - `trust: (claimed, baggage) => boolean | BaggageIdentity` — verify the claim (e.g. against a signed service token); return `true` to accept it, `false` to drop it, or your own verified `{ tenantId, userRef }`.
+  - `trustIdentity: true` — accept it as-is, only on hops you control end to end.
+  
+  For a verifier that needs to await, use the new `Context.fromBaggageVerified(header, fn, { trust: async … })`, which returns a Promise. An async `trust` passed to the sync `fromBaggage` is a type error and throws a `TypeError` at runtime instead of being read as "yes". On both paths a verifier that throws or rejects fails closed: identity is dropped, `fn` still runs with the trace id, and the error is reported with `console.warn` (once per process in production).
+  
+  `tenancy.trustBaggage: true` keeps accepting the tenant (never the user) app-wide, now also with tenancy off. Outside production, a one-time `console.warn` reports dropped identity and how to opt in. New exported types: `FromBaggageOptions`, `FromBaggageVerifiedOptions`, `BaggageIdentity`, `BaggageVerdict`, `BaggageVerifier`.
+  
+  Migration: where you relied on `fromBaggage` restoring the tenant or user, add `{ trust }` (recommended) or `{ trustIdentity: true }` to that call.
+
+- [#124](https://github.com/DavideCarvalho/adonis-agora-context/pull/124) [`8d83e6c`](https://github.com/DavideCarvalho/adonis-agora-context/commit/8d83e6c68881d0faa0560039be1b8b0010f383c2) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - 1.0.0: the API is now stable. No breaking API changes from 0.7: every export, accessor, config option and subpath is unchanged. Node.js 24 or later is required (`engines.node >=24`, as since 0.7.0). See the "Migrating to 1.0" docs page.
+
+### Minor Changes
+
+- [#135](https://github.com/DavideCarvalho/adonis-agora-context/pull/135) [`445c687`](https://github.com/DavideCarvalho/adonis-agora-context/commit/445c687399d1fbbd6b6e4d23d237edc4ed9693b8) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - `node ace agora:doctor` and `node ace context:doctor`: one health check for every installed `@adonis-agora` lib. Context adds the checks `context.middleware`, `context.single-copy`, `context.tenancy`, `context.trust-baggage` and `context.carrier`. `node ace configure @adonis-agora/context` now registers `@adonis-agora/context/commands` in `adonisrc.ts`; existing apps add that line by hand.
+
+- [#134](https://github.com/DavideCarvalho/adonis-agora-context/pull/134) [`30b28f0`](https://github.com/DavideCarvalho/adonis-agora-context/commit/30b28f00f362bbb761973e190c7711db145bb2fd) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Tenancy: the active tenant (organization) as a first-class part of the context, for every Agora lib to scope its data by.
+  
+  - `ContextStore.tenant` (`TenantRef`: `id`, `kind`, `source`, `slug`, `role`, `chain` for nested tenants, `family`), always kept in sync with `tenantId`. A plain `tenantId` reads as a `legacy` tenant.
+  - `Context.setTenant()`, `Context.withTenant()`, `Context.allTenants()`, `Context.tenant()`, `Context.tenants()`, `Context.tenantChain()`, `Context.requireTenant()`, `Context.tenantFilter()`, `Context.tenantLabels()`; tenants of several families (`{ family }`).
+  - `tenancy` in `config/context.ts`: `enabled` (off by default), `kinds`, `required` (`TenantRequiredError`, `E_TENANT_REQUIRED`), `personal`, `trustBaggage`, `label`.
+  - With tenancy on, the tenant rides every carrier (even a `carrier` list or custom `serialize` that omits it) and `toBaggage()` adds `tenantKind`; a tenant in incoming baggage is ignored unless `trustBaggage` is set.
+  - New global slot `Symbol.for('@agora/context:tenancy')` (`version: 1`) and `tenant()`, `tenancy()`, `tenantFilter()` on the accessor slot, so libs read the tenant without importing this package.
+
 ## 1.0.0-rc.3
 
 ### Major Changes
