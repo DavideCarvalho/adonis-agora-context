@@ -19,9 +19,14 @@ export {
   encodeUserRef,
 } from './baggage.js';
 export type {
+  BaggageIdentity,
+  BaggageVerdict,
+  BaggageVerifier,
   ContextCarrier,
   ContextEnricher,
   ContextStore,
+  FromBaggageOptions,
+  FromBaggageVerifiedOptions,
   UserRef,
 } from './context.js';
 export { Context } from './context.js';

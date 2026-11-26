@@ -115,8 +115,12 @@ const header = Context.toBaggage()
 // is seeded from `traceparent` when supplied, else a fresh random id.
 Context.fromBaggage(req.headers.baggage, () => doTheWork(), {
   traceparent: req.headers.traceparent,
+  // Identity (tenantId, userRef) is dropped unless you verify it:
+  trust: (claimed) => verifyServiceToken(req, claimed), // true | false | { tenantId, userRef }
 })
 ```
+
+A `baggage` header is unauthenticated: any client can set it. So `fromBaggage` ignores `tenantId` and `userRef` unless the call opts in with `trust` (a synchronous verifier that returns `true`, `false`, or the verified identity to use) or `trustIdentity: true` (only for hops you control end to end, behind a gateway that strips client baggage). Use `await Context.fromBaggageVerified(header, fn, { trust })` for an async verifier. A verifier that throws fails closed: the work runs without a tenant or user.
 
 Four pure codecs power these and are exported too:
 

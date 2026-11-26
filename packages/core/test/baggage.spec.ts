@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Context, type ContextStore, decodeBaggage, encodeBaggage } from '../src/index.js';
 
 afterEach(() => {
@@ -87,12 +87,16 @@ describe('Context.toBaggage', () => {
 describe('Context.fromBaggage', () => {
   it('hydrates tenantId + userRef from a baggage header and runs fn inside', () => {
     const header = encodeBaggage({ tenantId: 'acme', userRef: 'admin:abc' });
-    Context.fromBaggage(header, () => {
-      expect(Context.tenantId()).toBe('acme');
-      expect(Context.userRef()).toEqual({ type: 'admin', id: 'abc' });
-      // traceId invariant always preserved.
-      expect(Context.traceId()).toMatch(/^[0-9a-f]{32}$/);
-    });
+    Context.fromBaggage(
+      header,
+      () => {
+        expect(Context.tenantId()).toBe('acme');
+        expect(Context.userRef()).toEqual({ type: 'admin', id: 'abc' });
+        // traceId invariant always preserved.
+        expect(Context.traceId()).toMatch(/^[0-9a-f]{32}$/);
+      },
+      { trustIdentity: true },
+    );
   });
 
   it('round-trips tenant + userRef through a baggage header', () => {
@@ -103,10 +107,14 @@ describe('Context.fromBaggage', () => {
         header = Context.toBaggage();
       },
     );
-    Context.fromBaggage(header, () => {
-      expect(Context.tenantId()).toBe('tenant-9');
-      expect(Context.userRef()).toEqual({ type: 'admin', id: 'abc' });
-    });
+    Context.fromBaggage(
+      header,
+      () => {
+        expect(Context.tenantId()).toBe('tenant-9');
+        expect(Context.userRef()).toEqual({ type: 'admin', id: 'abc' });
+      },
+      { trustIdentity: true },
+    );
   });
 
   it('tolerates a malformed baggage header (still runs, leaves fields undefined)', () => {
@@ -125,7 +133,7 @@ describe('Context.fromBaggage', () => {
         expect(Context.traceId()).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
         expect(Context.tenantId()).toBe('acme');
       },
-      { traceparent: tp },
+      { traceparent: tp, trustIdentity: true },
     );
   });
 
@@ -141,18 +149,26 @@ describe('Context.fromBaggage', () => {
     expect(decoded['acme.tenant']).toBe('T');
     expect(decoded['acme.user']).toBe('user:1');
 
-    Context.fromBaggage(header, () => {
-      expect(Context.tenantId()).toBe('T');
-      // Baggage is a text format: a numeric id serializes and re-hydrates as a
-      // string. This is the documented round-trip behaviour.
-      expect(Context.userRef()).toEqual({ type: 'user', id: '1' });
-    });
+    Context.fromBaggage(
+      header,
+      () => {
+        expect(Context.tenantId()).toBe('T');
+        // Baggage is a text format: a numeric id serializes and re-hydrates as a
+        // string. This is the documented round-trip behaviour.
+        expect(Context.userRef()).toEqual({ type: 'user', id: '1' });
+      },
+      { trustIdentity: true },
+    );
   });
 
   it('a userRef token with no colon is tolerated (treated as id, type "user")', () => {
-    Context.fromBaggage(encodeBaggage({ userRef: 'bare-id' }), () => {
-      expect(Context.userRef()).toEqual({ type: 'user', id: 'bare-id' });
-    });
+    Context.fromBaggage(
+      encodeBaggage({ userRef: 'bare-id' }),
+      () => {
+        expect(Context.userRef()).toEqual({ type: 'user', id: 'bare-id' });
+      },
+      { trustIdentity: true },
+    );
   });
 
   it('does not require any baggage at all (empty header is fine)', () => {
@@ -171,5 +187,145 @@ describe('Context.fromBaggage', () => {
         userRef: { type: 'user', id: 1 },
       } satisfies Partial<ContextStore>);
     });
+  });
+});
+
+describe('Context.fromBaggage identity trust (security)', () => {
+  const forged = encodeBaggage({ tenantId: 'victim', userRef: 'admin:root' });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('drops tenantId and userRef from an unverified header by default', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    Context.fromBaggage(forged, () => {
+      expect(Context.tenantId()).toBeUndefined();
+      expect(Context.userRef()).toBeUndefined();
+      expect(Context.traceId()).toMatch(/^[0-9a-f]{32}$/);
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    // One-shot: a second drop does not warn again.
+    Context.fromBaggage(forged, () => {});
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not warn in production', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      Context.fromBaggage(forged, () => {
+        expect(Context.tenantId()).toBeUndefined();
+      });
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('accepts the claim when the verifier returns true, and shows it the claim', () => {
+    const seen: unknown[] = [];
+    Context.fromBaggage(
+      forged,
+      () => {
+        expect(Context.tenantId()).toBe('victim');
+        expect(Context.userRef()).toEqual({ type: 'admin', id: 'root' });
+      },
+      {
+        trust: (identity, baggage) => {
+          seen.push(identity, baggage.tenantId);
+          return true;
+        },
+      },
+    );
+    expect(seen).toEqual([
+      { tenantId: 'victim', userRef: { type: 'admin', id: 'root' } },
+      'victim',
+    ]);
+  });
+
+  it('drops the claim when the verifier returns false', () => {
+    Context.fromBaggage(
+      forged,
+      () => {
+        expect(Context.tenantId()).toBeUndefined();
+        expect(Context.userRef()).toBeUndefined();
+      },
+      { trust: () => false },
+    );
+  });
+
+  it('uses the identity the verifier returns instead of the claim', () => {
+    Context.fromBaggage(
+      forged,
+      () => {
+        expect(Context.tenantId()).toBe('real');
+        expect(Context.userRef()).toBeUndefined();
+      },
+      { trust: () => ({ tenantId: 'real' }) },
+    );
+  });
+
+  it('fails closed when the verifier throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let ran = false;
+    Context.fromBaggage(
+      forged,
+      () => {
+        ran = true;
+        expect(Context.tenantId()).toBeUndefined();
+        expect(Context.userRef()).toBeUndefined();
+      },
+      {
+        trust: () => {
+          throw new Error('bad token');
+        },
+      },
+    );
+    expect(ran).toBe(true);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('refuses an async verifier in the sync fromBaggage without running fn', () => {
+    let ran = false;
+    expect(() =>
+      Context.fromBaggage(
+        forged,
+        () => {
+          ran = true;
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: deliberately wrong type
+        { trust: (async () => true) as any },
+      ),
+    ).toThrow(/fromBaggageVerified/);
+    expect(ran).toBe(false);
+  });
+
+  it('fromBaggageVerified awaits an async verifier', async () => {
+    const result = await Context.fromBaggageVerified(forged, () => Context.tenantId(), {
+      trust: async () => true,
+    });
+    expect(result).toBe('victim');
+  });
+
+  it('fromBaggageVerified fails closed when the verifier rejects', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await Context.fromBaggageVerified(
+      forged,
+      () => [Context.tenantId(), Context.userRef()],
+      {
+        trust: async () => {
+          throw new Error('nope');
+        },
+      },
+    );
+    expect(result).toEqual([undefined, undefined]);
+  });
+
+  it('fromBaggageVerified drops identity without a verifier', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await Context.fromBaggageVerified(forged, () => Context.tenantId());
+    expect(result).toBeUndefined();
   });
 });

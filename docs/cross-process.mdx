@@ -238,8 +238,12 @@ const header = Context.toBaggage() // 'tenantId=t1,userRef=user%3A42' | undefine
 // and valid) else a fresh random id — mirroring the middleware:
 Context.fromBaggage(req.headers.baggage, () => doTheWork(), {
   traceparent: req.headers.traceparent,
+  // Identity (tenantId, userRef) is dropped unless you verify it:
+  trust: (claimed) => verifyServiceToken(req, claimed), // true | false | { tenantId, userRef }
 })
 ```
+
+A `baggage` header is unauthenticated: any client can set it. So `fromBaggage` ignores `tenantId` and `userRef` unless the call opts in with `trust` (a synchronous verifier that returns `true`, `false`, or the verified identity to use) or `trustIdentity: true` (only for hops you control end to end, behind a gateway that strips client baggage). Use `await Context.fromBaggageVerified(header, fn, { trust })` for an async verifier. A verifier that throws fails closed: the work runs without a tenant or user.
 
 By default `toBaggage` maps `tenantId` and `userRef` (the ref encoded as a compact `type:id` token). `fromBaggage` is tolerant of a malformed or absent header — it just yields a context with those fields unset. Tune the keys, or disable a field entirely, via the `baggage` config option — see [Customization → cross-process carrier](/docs/context/customization#level-4--cross-process-carrier).
 
