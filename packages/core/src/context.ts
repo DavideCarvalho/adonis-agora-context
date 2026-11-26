@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
+  type Baggage,
   type BaggageKeyMap,
   decodeBaggage,
   decodeUserRef,
@@ -202,6 +203,81 @@ let warnedMissingTraceId = false;
 /** One-shot guard so the out-of-context `set` warning is not spammed. */
 let warnedSetOutsideContext = false;
 
+/** One-shot guard for the "identity dropped from untrusted baggage" warning. */
+let warnedUntrustedBaggage = false;
+
+/** In production a failing baggage verifier is reported once per process. */
+let warnedVerifierErrorInProduction = false;
+
+/**
+ * The identity fields `Context.fromBaggage` can restore from a `baggage`
+ * header. Shown to a {@link FromBaggageOptions.trust} verifier, and returned by
+ * one that wants to substitute its own verified values.
+ */
+export interface BaggageIdentity {
+  tenantId?: string;
+  /** Only read/written when tenancy is enabled. */
+  tenantKind?: string;
+  userRef?: UserRef;
+}
+
+/**
+ * What a baggage verifier returns: `true` accepts the claimed identity,
+ * `false`/`undefined`/`null` drops it, a {@link BaggageIdentity} replaces it.
+ * (`then?: never` keeps a Promise from type-checking as an identity, so an
+ * async verifier is rejected by the sync `fromBaggage`.)
+ */
+export type BaggageVerdict = boolean | (BaggageIdentity & { then?: never }) | undefined | null;
+
+/** A baggage identity verifier. Receives the claimed identity and the full decoded map. */
+export type BaggageVerifier<R> = (identity: BaggageIdentity, baggage: Baggage) => R;
+
+interface BaggageOptionsBase {
+  /**
+   * W3C `traceparent` header value to seed `traceId` from. Falls back to a
+   * fresh random id when absent or invalid.
+   */
+  traceparent?: string;
+  /**
+   * Accept the identity in the header as-is. Only for hops you control end to
+   * end (an internal service behind a gateway that strips client baggage).
+   * @default false
+   */
+  trustIdentity?: boolean;
+}
+
+/** Options for {@link Context.fromBaggage}. */
+export interface FromBaggageOptions extends BaggageOptionsBase {
+  /**
+   * Decide whether the identity (`tenantId`, `tenantKind`, `userRef`) found in
+   * the header may be used. A `baggage` header is plain text any client can
+   * send, so without this (or `trustIdentity`) identity is dropped.
+   *
+   * Return `true` to accept what the header says, `false`/`undefined` to drop
+   * it, or a {@link BaggageIdentity} to use those (verified) values instead —
+   * e.g. the tenant and user of a signed service token. Must be synchronous;
+   * use {@link Context.fromBaggageVerified} for an async verifier. A verifier
+   * that throws fails closed: identity is dropped and the error is reported.
+   */
+  trust?: BaggageVerifier<BaggageVerdict>;
+}
+
+/** Options for {@link Context.fromBaggageVerified}. */
+export interface FromBaggageVerifiedOptions extends BaggageOptionsBase {
+  /**
+   * Like {@link FromBaggageOptions.trust}, but may be async. A verifier that
+   * throws or rejects fails closed: identity is dropped and the error reported.
+   */
+  trust?: BaggageVerifier<BaggageVerdict | PromiseLike<BaggageVerdict>>;
+}
+
+interface ParsedBaggage {
+  traceId: string;
+  decoded: Baggage;
+  /** What the header claims. Nothing here is trusted yet. */
+  claimed: BaggageIdentity;
+}
+
 export function ensureTraceId(store: ContextStore): ContextStore {
   // A cross-process carrier may arrive missing/empty `traceId` (e.g. produced by
   // a different runtime). The ContextStore.traceId invariant is `string`, so we
@@ -330,6 +406,115 @@ function addTenantToCarrier(store: ContextStore, carrier: ContextCarrier): Conte
 const SYSTEM_FILTER: TenantFilter = Object.freeze({ mode: 'system' });
 const ALL_FILTER: TenantFilter = Object.freeze({ mode: 'all' });
 const TENANTLESS_FILTER: TenantFilter = Object.freeze({ mode: 'tenantless' });
+
+function warnUntrustedBaggage(dropped: string[]): void {
+  if (warnedUntrustedBaggage || process.env.NODE_ENV === 'production') {
+    return;
+  }
+  warnedUntrustedBaggage = true;
+  console.warn(
+    `[@adonis-agora/context] Context.fromBaggage() ignored ${dropped.join(' and ')} from an incoming baggage header: baggage is unauthenticated, so any client could set it. Pass { trust: (identity) => … } to verify it (e.g. against a signed service token), or { trustIdentity: true } on a hop you control. See https://davidecarvalho.github.io/agora/docs/context/cross-process#w3c-baggage--the-standards-compliant-option. This warning fires once per process and never in production.`,
+  );
+}
+
+function reportVerifierError(error: unknown): void {
+  if (process.env.NODE_ENV === 'production') {
+    if (warnedVerifierErrorInProduction) {
+      return;
+    }
+    warnedVerifierErrorInProduction = true;
+  }
+  console.warn(
+    '[@adonis-agora/context] The trust verifier passed to Context.fromBaggage()/fromBaggageVerified() threw, so the identity in the baggage header was dropped (fail closed) and the work ran without a tenant or user. Return false to reject a header instead of throwing. In production this warning fires once per process.',
+    error,
+  );
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === 'object' || typeof value === 'function') &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
+}
+
+function parseBaggage(header: string | string[] | undefined, traceparent?: string): ParsedBaggage {
+  const keys = resolveBaggageKeys(config.baggage);
+  const decoded = decodeBaggage(header);
+  const traceId =
+    (traceparent !== undefined ? extractTraceparent({ traceparent }) : undefined) ??
+    randomTraceId();
+
+  const claimed: BaggageIdentity = {};
+  if (keys.tenantId !== false) {
+    const tenantId = decoded[keys.tenantId];
+    if (tenantId !== undefined && tenantId !== '') {
+      claimed.tenantId = tenantId;
+      const kind = keys.tenantKind === false ? undefined : decoded[keys.tenantKind];
+      if (tenancy.enabled && kind) {
+        claimed.tenantKind = kind;
+      }
+    }
+  }
+  if (keys.userRef !== false) {
+    const token = decoded[keys.userRef];
+    const userRef = token === undefined ? undefined : decodeUserRef(token);
+    if (userRef !== undefined) {
+      claimed.userRef = userRef;
+    }
+  }
+  return { traceId, decoded, claimed };
+}
+
+/** Identity when the call did not opt in: only an app-wide `trustBaggage` tenant. */
+function unverifiedIdentity(claimed: BaggageIdentity): BaggageIdentity {
+  const identity: BaggageIdentity = {};
+  if (tenancy.trustBaggage && claimed.tenantId !== undefined) {
+    identity.tenantId = claimed.tenantId;
+    if (claimed.tenantKind !== undefined) {
+      identity.tenantKind = claimed.tenantKind;
+    }
+  }
+  const dropped: string[] = [];
+  if (claimed.tenantId !== undefined && identity.tenantId === undefined) {
+    dropped.push('tenantId');
+  }
+  if (claimed.userRef !== undefined) {
+    dropped.push('userRef');
+  }
+  if (dropped.length > 0) {
+    warnUntrustedBaggage(dropped);
+  }
+  return identity;
+}
+
+function identityFromVerdict(verdict: BaggageVerdict, claimed: BaggageIdentity): BaggageIdentity {
+  if (verdict === true) {
+    return claimed;
+  }
+  if (verdict !== null && typeof verdict === 'object') {
+    return verdict;
+  }
+  return {};
+}
+
+function runInBaggageContext<T>(traceId: string, identity: BaggageIdentity, fn: () => T): T {
+  const store: ContextStore = { traceId };
+  if (identity.tenantId !== undefined && identity.tenantId !== '') {
+    store.tenantId = identity.tenantId;
+    if (tenancy.enabled) {
+      store.tenant = {
+        id: identity.tenantId,
+        kind: identity.tenantKind || 'unknown',
+        source: 'baggage',
+      };
+    }
+  }
+  if (identity.userRef !== undefined) {
+    store.userRef = identity.userRef;
+  }
+  return als.run(store, fn);
+}
 
 function warnSetOutsideContext(what: string): void {
   if (!warnedSetOutsideContext) {
@@ -739,6 +924,8 @@ export const Context = {
     tenancy = resolveTenancy(undefined);
     registeredLabeler = undefined;
     configured = false;
+    warnedUntrustedBaggage = false;
+    warnedVerifierErrorInProduction = false;
   },
 
   /**
@@ -818,46 +1005,79 @@ export const Context = {
    * of {@link toBaggage}) and run `fn` inside it. Tolerant of a malformed/absent
    * header — it simply yields a context with those fields unset.
    *
+   * **Identity is not trusted by default.** A `baggage` header is unauthenticated
+   * text, so `tenantId`, `tenantKind` and `userRef` are dropped unless the call
+   * opts in with `opts.trust` (a verifier) or `opts.trustIdentity: true` (a hop
+   * you control). `tenancy.trustBaggage` in config still accepts the tenant (not
+   * the user) app-wide, for apps behind a gateway that sets it.
+   *
    * Baggage carries no trace-id, so the `traceId` invariant is satisfied from
    * `opts.traceparent` (a W3C `traceparent` header value, when supplied and
    * valid) else a freshly generated id — mirroring the middleware's seeding.
    */
-  fromBaggage<T>(
+  fromBaggage<T>(header: string | string[] | undefined, fn: () => T, opts?: FromBaggageOptions): T {
+    const { traceId, decoded, claimed } = parseBaggage(header, opts?.traceparent);
+    if (opts?.trustIdentity === true) {
+      return runInBaggageContext(traceId, claimed, fn);
+    }
+    const trust = opts?.trust;
+    if (trust === undefined) {
+      return runInBaggageContext(traceId, unverifiedIdentity(claimed), fn);
+    }
+    let verdict: unknown;
+    try {
+      verdict = trust({ ...claimed }, decoded);
+    } catch (error) {
+      reportVerifierError(error);
+      return runInBaggageContext(traceId, {}, fn);
+    }
+    if (isThenable(verdict)) {
+      // An async verifier would always look "truthy" here. Refuse loudly
+      // instead, and keep its eventual rejection from going unhandled.
+      verdict.then(undefined, () => {});
+      throw new TypeError(
+        '[@adonis-agora/context] Context.fromBaggage() got a trust verifier that returned a Promise. ' +
+          'fromBaggage is synchronous and cannot wait for it, so nothing ran. ' +
+          'Use `await Context.fromBaggageVerified(header, fn, { trust })` for an async verifier.',
+      );
+    }
+    return runInBaggageContext(
+      traceId,
+      identityFromVerdict(verdict as BaggageVerdict, claimed),
+      fn,
+    );
+  },
+
+  /**
+   * Async counterpart of {@link fromBaggage} for a verifier that needs to await
+   * (fetch a key, look up a service token). Waits for `opts.trust`, then runs
+   * `fn` inside the re-hydrated context and resolves with its result.
+   *
+   * Fails closed: if the verifier throws or rejects, the identity is dropped,
+   * `fn` still runs with the trace id (and no tenant/user), and the error is
+   * reported with a `console.warn`. Errors thrown by `fn` itself reject the
+   * returned promise as usual.
+   */
+  async fromBaggageVerified<T>(
     header: string | string[] | undefined,
     fn: () => T,
-    opts?: { traceparent?: string },
-  ): T {
-    const keys = resolveBaggageKeys(config.baggage);
-    const decoded = decodeBaggage(header);
-
-    const traceId =
-      (opts?.traceparent !== undefined
-        ? extractTraceparent({ traceparent: opts.traceparent })
-        : undefined) ?? randomTraceId();
-
-    const store: ContextStore = { traceId };
-    // With tenancy on, a tenant from the network is ignored unless the app opted
-    // in with `trustBaggage` (e.g. behind a gateway that sets it).
-    if (keys.tenantId !== false && (!tenancy.enabled || tenancy.trustBaggage)) {
-      const tenantId = decoded[keys.tenantId];
-      if (tenantId !== undefined && tenantId !== '') {
-        store.tenantId = tenantId;
-        if (tenancy.enabled) {
-          const kind = keys.tenantKind === false ? undefined : decoded[keys.tenantKind];
-          store.tenant = { id: tenantId, kind: kind || 'unknown', source: 'baggage' };
-        }
+    opts?: FromBaggageVerifiedOptions,
+  ): Promise<Awaited<T>> {
+    const { traceId, decoded, claimed } = parseBaggage(header, opts?.traceparent);
+    let identity: BaggageIdentity;
+    if (opts?.trustIdentity === true) {
+      identity = claimed;
+    } else if (opts?.trust === undefined) {
+      identity = unverifiedIdentity(claimed);
+    } else {
+      try {
+        identity = identityFromVerdict(await opts.trust({ ...claimed }, decoded), claimed);
+      } catch (error) {
+        reportVerifierError(error);
+        identity = {};
       }
     }
-    if (keys.userRef !== false) {
-      const token = decoded[keys.userRef];
-      if (token !== undefined) {
-        const userRef = decodeUserRef(token);
-        if (userRef !== undefined) {
-          store.userRef = userRef;
-        }
-      }
-    }
-    return als.run(store, fn);
+    return await runInBaggageContext(traceId, identity, fn);
   },
 
   /**

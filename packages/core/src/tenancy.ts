@@ -98,8 +98,9 @@ export interface TenancyConfig {
    */
   personal?: boolean;
   /**
-   * Accept a tenant from an incoming W3C `baggage` header. Only enable behind a
-   * trusted gateway / for service-to-service calls.
+   * Accept a tenant (never the user) from an incoming W3C `baggage` header in
+   * every `Context.fromBaggage()` call, without a per-call `trust` verifier.
+   * Only enable behind a gateway that strips client baggage.
    * @default false
    */
   trustBaggage?: boolean;

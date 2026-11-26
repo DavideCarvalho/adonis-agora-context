@@ -274,6 +274,50 @@ Context.fromBaggage(req.headers.baggage, () => doTheWork(), {
 
 By default `toBaggage` maps `tenantId` and `userRef` (the ref encoded as a compact `type:id` token). `fromBaggage` is tolerant of a malformed or absent header — it just yields a context with those fields unset. Tune the keys, or disable a field entirely, via the `baggage` config option — see [Customization → cross-process carrier](/docs/context/customization#level-4--cross-process-carrier).
 
+### Identity in incoming baggage is not trusted by default
+
+A `baggage` header is plain text: any client can send `baggage: tenantId=someone-else,userRef=user:1`. So `fromBaggage` **drops `tenantId`, `tenantKind` and `userRef` unless the call opts in** — otherwise a forged header would pick the tenant (and the tenant-scoped database connection) and the user for everything that runs inside. The trace id is still seeded as usual. Outside production a one-time `console.warn` tells you when identity was dropped and how to opt in.
+
+Opt in per call, in one of two ways:
+
+```ts
+// 1. Verify it. `trust` sees what the header claims (and the full decoded map).
+//    Return true to accept it, false to drop it, or your own verified values.
+Context.fromBaggage(req.headers.baggage, () => doTheWork(), {
+  traceparent: req.headers.traceparent,
+  trust: (claimed) => {
+    const caller = verifyServiceToken(req.headers.authorization) // your auth
+    if (!caller) return false
+    // Use the identity from the signed token, not from the header:
+    return { tenantId: caller.tenantId, userRef: { type: 'service', id: caller.name } }
+  },
+})
+
+// 2. Accept it as-is, only on a hop you control end to end
+//    (e.g. an internal worker that only your own services can reach):
+Context.fromBaggage(message.headers.baggage, () => handle(message), {
+  trustIdentity: true,
+})
+```
+
+`trust` must be synchronous on `fromBaggage`. When verifying needs to await (fetching a signing key, looking up a service token), use `fromBaggageVerified`, which takes the same options, waits for the verifier, then runs your callback and resolves with its result:
+
+```ts
+const result = await Context.fromBaggageVerified(req.headers.baggage, () => doTheWork(), {
+  traceparent: req.headers.traceparent,
+  trust: async (claimed) => {
+    const caller = await serviceTokens.verify(req.headers.authorization)
+    return caller ? { tenantId: caller.tenantId, userRef: { type: 'service', id: caller.name } } : false
+  },
+})
+```
+
+Passing an async verifier to `fromBaggage` is a type error, and at runtime it throws a `TypeError` pointing to `fromBaggageVerified` before running anything (a pending Promise would otherwise look like a "yes").
+
+**Verifier errors fail closed, on both paths.** If `trust` throws (or its Promise rejects), the identity is dropped, your callback still runs with the trace id but no tenant or user, and the error is logged with `console.warn` (every time in development, once per process in production). To reject a header on purpose, return `false` instead of throwing. Errors thrown by your callback propagate as usual.
+
+If your app sits behind a gateway that strips client baggage and sets the tenant itself, `tenancy.trustBaggage: true` in `config/context.ts` accepts the **tenant** (never the user) in every `fromBaggage` call without a verifier. `node ace agora:doctor` warns about it in production.
+
 ### The low-level codecs
 
 `toBaggage` / `fromBaggage` are the ergonomic front doors, but the four pure functions they are built on are exported too, for when you need to read or write a `baggage` header outside the `Context` lifecycle — a gateway, a piece of middleware for a non-Agora service, a test:

@@ -111,16 +111,11 @@ export function checkTenancy(app: ApplicationService): DoctorResult[] {
 /** `context.trust-baggage`: a tenant from the network is only trusted on purpose. */
 export function checkTrustBaggage(app: ApplicationService): DoctorResult {
   const tenancy = contextConfig(app).tenancy;
-  if (tenancy?.enabled !== true) {
+  if (tenancy?.trustBaggage !== true) {
     return {
       status: 'skip',
-      message: 'tenancy is off (Context.fromBaggage still restores a plain tenantId)',
-    };
-  }
-  if (tenancy.trustBaggage !== true) {
-    return {
-      status: 'skip',
-      message: 'incoming baggage cannot set the tenant (trustBaggage is off)',
+      message:
+        'incoming baggage cannot set the tenant or user unless a Context.fromBaggage() call opts in with trust/trustIdentity',
     };
   }
   return {
