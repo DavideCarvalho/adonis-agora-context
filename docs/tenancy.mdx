@@ -213,7 +213,7 @@ async handle(payload: InvoicePayload & { __ctx?: ContextCarrier }) {
 }
 ```
 
-Durable runs carry the tenant on their own. Outgoing service-to-service calls send `tenantId` and `tenantKind` in `Context.toBaggage()`; the receiving app only reads them with `trustBaggage: true`.
+Durable runs carry the tenant on their own. Outgoing service-to-service calls send `tenantId` and `tenantKind` in `Context.toBaggage()`; the receiving app only reads them when its `Context.fromBaggage()` call passes a `trust` verifier (or `trustIdentity: true`), or app-wide with `tenancy.trustBaggage: true`.
 
 ---
 

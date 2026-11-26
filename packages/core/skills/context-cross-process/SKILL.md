@@ -114,11 +114,27 @@ import { Context } from '@adonis-agora/context'
 const header = Context.toBaggage()
 
 // Re-hydrate inside an inbound baggage header. Baggage has no trace id, so it
-// is seeded from `traceparent` when supplied, else a fresh random id. A tenant
-// in incoming baggage is ignored unless `tenancy.trustBaggage` is set.
+// is seeded from `traceparent` when supplied, else a fresh random id.
+// Identity (tenantId, tenantKind, userRef) in incoming baggage is DROPPED unless
+// the call opts in: baggage is unauthenticated, any client can forge it.
 Context.fromBaggage(req.headers.baggage, () => doTheWork(), {
   traceparent: req.headers.traceparent,
+  // Verify: return true, false, or your own verified { tenantId, userRef }.
+  trust: () => verifyServiceToken(req.headers.authorization) !== undefined,
 })
+
+// Async verifier (fetch a key, look up a token)? Use fromBaggageVerified, which
+// returns a Promise. An async `trust` on the sync fromBaggage is a type error and
+// throws at runtime. A verifier that throws/rejects fails closed on both paths:
+// identity dropped, fn still runs, error console.warn'ed. Return false to reject.
+await Context.fromBaggageVerified(req.headers.baggage, () => doTheWork(), {
+  trust: async () => (await serviceTokens.verify(req.headers.authorization)) !== undefined,
+})
+
+// Or, only on a hop you control end to end:
+Context.fromBaggage(message.headers.baggage, () => handle(message), { trustIdentity: true })
+// `tenancy.trustBaggage: true` accepts the tenant (never the user) app-wide, for
+// apps behind a gateway that strips client baggage.
 ```
 
 Four pure codecs power these and are exported too:

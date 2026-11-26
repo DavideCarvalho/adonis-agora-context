@@ -325,10 +325,25 @@ describe('baggage', () => {
     });
   });
 
-  it('keeps today behaviour while tenancy is off', () => {
+  it('drops an untrusted tenant while tenancy is off too', () => {
+    Context.fromBaggage('tenantId=org', () => {
+      expect(Context.tenantId()).toBeUndefined();
+    });
+    Context.configure({ tenancy: { trustBaggage: true } });
     Context.fromBaggage('tenantId=org', () => {
       expect(Context.tenantId()).toBe('org');
     });
+  });
+
+  it('a trust verifier sets the tenant and kind when tenancy is on', () => {
+    Context.configure({ tenancy: { enabled: true } });
+    Context.fromBaggage(
+      'tenantId=org,tenantKind=organization',
+      () => {
+        expect(Context.tenant()).toEqual({ id: 'org', kind: 'organization', source: 'baggage' });
+      },
+      { trust: () => true },
+    );
   });
 });
 
@@ -451,9 +466,13 @@ describe('review fixes', () => {
   });
 
   it('an empty tenantId in baggage is ignored', () => {
-    Context.fromBaggage('tenantId=', () => {
-      expect(Context.tenantId()).toBeUndefined();
-    });
+    Context.fromBaggage(
+      'tenantId=',
+      () => {
+        expect(Context.tenantId()).toBeUndefined();
+      },
+      { trustIdentity: true },
+    );
   });
 
   it('withTenant(null) clears every family', () => {

@@ -238,7 +238,7 @@ export default defineConfig({
 })
 ```
 
-You can also tune **W3C baggage** propagation here. By default `Context.toBaggage()` / `fromBaggage()` map `tenantId` and `userRef`; set a custom key to namespace them, or `false` to never propagate a field:
+You can also tune **W3C baggage** propagation here. By default `Context.toBaggage()` / `fromBaggage()` map `tenantId` and `userRef`; set a custom key to namespace them, or `false` to never propagate a field. (Incoming identity is only restored when the `fromBaggage` call opts in with `trust` or `trustIdentity` — see [Cross-process → W3C baggage](/docs/context/cross-process#identity-in-incoming-baggage-is-not-trusted-by-default).)
 
 ```ts title="config/context.ts"
 export default defineConfig({
