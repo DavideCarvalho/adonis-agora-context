@@ -96,6 +96,10 @@ export default class Reconcile extends BaseCommand {
       () => this.reconcileAll(),
     )
   }
+
+  private async reconcileAll() {
+    // … the command's work: queries, dispatched jobs, logs
+  }
 }
 ```
 
@@ -282,7 +286,7 @@ Wrong:
 ```ts
 const carrier = job.payload.__ctx ?? { traceId: undefined as never }
 if (!carrier.traceId) throw new Error('no trace id on carrier') // unnecessary crash
-return Context.deserialize(carrier, () => work())
+await Context.deserialize(carrier, () => work())
 ```
 
 Correct:
@@ -290,7 +294,7 @@ Correct:
 ```ts
 // Pass it straight through: no carrier → runs with no store; carrier without a
 // traceId → a fresh randomTraceId() is synthesized (with a one-time warn).
-return Context.deserialize(job.payload.__ctx, () => work())
+await Context.deserialize(job.payload.__ctx, () => work())
 ```
 
 Mechanism: `deserialize` protects the `ContextStore.traceId: string` invariant —
