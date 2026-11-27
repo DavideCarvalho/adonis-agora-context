@@ -180,8 +180,10 @@ right Lucid connection. With **no tenant in context** it throws
 a silent default-DB read is a cross-tenant leak. Declare `sharedConnection`
 only for legitimately tenant-less paths.
 
-```ts no-check
+```ts
+import db from '@adonisjs/lucid/services/db'
 import { defineTenantConnections } from '@adonis-agora/context/lucid'
+import Invoice from '#models/invoice'
 
 export const tenancy = defineTenantConnections({
   resolve: (tenantId) => `tenant_${tenantId}`,

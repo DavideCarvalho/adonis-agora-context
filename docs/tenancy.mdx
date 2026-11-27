@@ -204,11 +204,11 @@ With tenancy on, the tenant (including its chain and other families) always trav
 
 ```ts
 // app/controllers/invoices_controller.ts
-await queue.dispatch('send-invoice', { invoiceId, __ctx: Context.serialize() })
+await SendInvoiceJob.dispatch({ invoiceId, __ctx: Context.serialize() })
 
-// app/jobs/send_invoice_job.ts
-async handle(payload: InvoicePayload & { __ctx?: ContextCarrier }) {
-  return Context.deserialize(payload.__ctx, () => this.send(payload))
+// app/jobs/send_invoice_job.ts (a Job<{ invoiceId: number; __ctx?: ContextCarrier }>)
+async execute() {
+  return Context.deserialize(this.payload.__ctx, () => this.send(this.payload))
   // Context.tenant() here is the tenant of the request that dispatched the job
 }
 ```

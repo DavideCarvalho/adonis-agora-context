@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@adonisjs/auth": "10.1.1",
+    "@adonisjs/lucid": "22.5.0",
     "@adonisjs/queue": "0.7.0",
     "@arethetypeswrong/cli": "0.18.5",
     "@biomejs/biome": "2.6.9",

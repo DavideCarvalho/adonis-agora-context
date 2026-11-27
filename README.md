@@ -38,9 +38,9 @@ Context.set('userRef', { type: 'user', id: user.id })
 Carry the context across a queue/process boundary:
 
 ```ts
-queue.dispatch('send-email', { ...payload, __ctx: Context.serialize() })
-// in the worker:
-Context.deserialize(job.__ctx, () => handler(job))
+await SendEmailJob.dispatch({ ...payload, __ctx: Context.serialize() })
+// in the job's execute():
+return Context.deserialize(this.payload.__ctx, () => this.send(this.payload))
 ```
 
 See [`DESIGN.md`](./DESIGN.md) for the full contract (customization levels,
