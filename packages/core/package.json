@@ -76,6 +76,9 @@
     "**/writer.js",
     "**/writer.ts"
   ],
+  "publishConfig": {
+    "tag": "v0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json && pnpm run copy:stubs",
     "copy:stubs": "mkdir -p dist/stubs/config && cp stubs/config/context.stub dist/stubs/config/context.stub",
