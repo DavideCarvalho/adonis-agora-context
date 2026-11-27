@@ -163,7 +163,7 @@ right Lucid connection. With **no tenant in context** it throws
 a silent default-DB read is a cross-tenant leak. Declare `sharedConnection`
 only for legitimately tenant-less paths.
 
-```ts
+```ts no-check
 import { defineTenantConnections } from '@adonis-agora/context/lucid'
 
 export const tenancy = defineTenantConnections({
@@ -198,6 +198,10 @@ export default class Reconcile extends BaseCommand {
       { traceId: randomTraceId(), userRef: { type: 'system', id: 'cron' } },
       () => this.reconcileAll(),
     )
+  }
+
+  private async reconcileAll() {
+    // … the command's work: queries, dispatched jobs, logs
   }
 }
 ```
@@ -276,7 +280,7 @@ value is silently dropped and a one-shot `console.warn` fires once per process;
 
 Wrong:
 
-```ts
+```ts no-check
 // router stack only: routes without explicit registration get NO context
 router.use([() => import('@adonis-agora/context/context_middleware')])
 
@@ -288,7 +292,7 @@ async handle(ctx: HttpContext, next: NextFn) {
 
 Correct:
 
-```ts
+```ts no-check
 // server stack (what `node ace configure` wires): every request gets a store,
 // established with enterWith so it survives this middleware returning.
 async handle(ctx: HttpContext, next: NextFn) {

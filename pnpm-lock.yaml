@@ -200,6 +200,9 @@ importers:
       '@swc/core':
         specifier: 1.16.22
         version: 1.16.22
+      '@tanstack/intent':
+        specifier: 0.5.6
+        version: 0.5.6
       publint:
         specifier: 0.3.25
         version: 0.3.25
