@@ -42,12 +42,12 @@ The whole integration across a raw queue is two lines:
 
 ```ts
 // app/services/invoice_service.ts — dispatch side (inside an HTTP request)
-import queue from '@adonisjs/queue/services/main'
+import SendInvoiceJob from '#jobs/send_invoice_job'
 import { Context } from '@adonis-agora/context'
 
 export default class InvoiceService {
   async requestInvoice(payload: { invoiceId: number; email: string }) {
-    await queue.dispatch('send-invoice', {
+    await SendInvoiceJob.dispatch({
       ...payload,
       __ctx: Context.serialize(), // snapshot who / which tenant / which trace
     })
@@ -57,11 +57,18 @@ export default class InvoiceService {
 
 ```ts
 // app/jobs/send_invoice_job.ts — consume side (fresh process, no context yet)
+import { Job } from '@adonisjs/queue'
 import { Context, type ContextCarrier } from '@adonis-agora/context'
 
-export default class SendInvoiceJob {
-  async handle(payload: { invoiceId: number; email: string } & { __ctx?: ContextCarrier }) {
-    return Context.deserialize(payload.__ctx, () => this.send(payload))
+interface SendInvoicePayload {
+  invoiceId: number
+  email: string
+  __ctx?: ContextCarrier
+}
+
+export default class SendInvoiceJob extends Job<SendInvoicePayload> {
+  async execute() {
+    return Context.deserialize(this.payload.__ctx, () => this.send(this.payload))
   }
 
   private async send(payload: { invoiceId: number; email: string }) {
@@ -111,36 +118,42 @@ Instead of (or alongside) the bespoke carrier, the context can ride a real W3C
 `baggage` header that OpenTelemetry SDKs and gateways understand.
 
 ```ts
+import type { HttpContext } from '@adonisjs/core/http'
 import { Context } from '@adonis-agora/context'
+import { serviceTokens, verifyServiceToken } from '#services/service_tokens'
+import { doTheWork, handle, type Message } from '#services/work'
 
-// Build a baggage header from the active context ('tenantId=t1,userRef=user%3A42',
-// plus 'tenantKind=<kind>' when tenancy is enabled and the kind is known).
-const header = Context.toBaggage()
+export async function inbound({ request }: HttpContext) {
+  // Build a baggage header from the active context ('tenantId=t1,userRef=user%3A42',
+  // plus 'tenantKind=<kind>' when tenancy is enabled and the kind is known).
+  const header = Context.toBaggage()
 
-// Re-hydrate inside an inbound baggage header. Baggage has no trace id, so it
-// is seeded from `traceparent` when supplied, else a fresh random id.
-// Identity (tenantId, tenantKind, userRef) in incoming baggage is DROPPED unless
-// the call opts in: baggage is unauthenticated, any client can forge it.
-Context.fromBaggage(req.headers.baggage, () => doTheWork(), {
-  traceparent: req.headers.traceparent,
-  // Verify: return true, false, or your own verified { tenantId, userRef }.
-  trust: () => verifyServiceToken(req.headers.authorization) !== undefined,
-})
+  // Re-hydrate inside an inbound baggage header. Baggage has no trace id, so it
+  // is seeded from `traceparent` when supplied, else a fresh random id.
+  // Identity (tenantId, tenantKind, userRef) in incoming baggage is DROPPED unless
+  // the call opts in: baggage is unauthenticated, any client can forge it.
+  Context.fromBaggage(request.header('baggage'), () => doTheWork(), {
+    traceparent: request.header('traceparent'),
+    // Verify: return true, false, or your own verified { tenantId, userRef }.
+    trust: () => verifyServiceToken(request.header('authorization')) !== undefined,
+  })
 
-// Async verifier (fetch a key, look up a token)? Use fromBaggageVerified, which
-// returns a Promise. An async `trust` on the sync fromBaggage is a type error and
-// throws at runtime. A verifier that throws/rejects fails closed on both paths:
-// identity dropped, fn still runs, error console.warn'ed. Return false to reject.
-await Context.fromBaggageVerified(req.headers.baggage, () => doTheWork(), {
-  trust: async () => (await serviceTokens.verify(req.headers.authorization)) !== undefined,
-})
+  // Async verifier (fetch a key, look up a token)? Use fromBaggageVerified, which
+  // returns a Promise. An async `trust` on the sync fromBaggage is a type error and
+  // throws at runtime. A verifier that throws/rejects fails closed on both paths:
+  // identity dropped, fn still runs, error console.warn'ed. Return false to reject.
+  await Context.fromBaggageVerified(request.header('baggage'), () => doTheWork(), {
+    trust: async () => (await serviceTokens.verify(request.header('authorization'))) !== undefined,
+  })
+}
 
 // Or, only on a hop you control end to end:
-Context.fromBaggage(message.headers.baggage, () => handle(message), { trustIdentity: true })
+export function onMessage(message: Message) {
+  Context.fromBaggage(message.headers.baggage, () => handle(message), { trustIdentity: true })
+}
 // `tenancy.trustBaggage: true` accepts the tenant (never the user) app-wide, for
 // apps behind a gateway that strips client baggage.
 ```
-
 Four pure codecs power these and are exported too:
 
 ```ts
@@ -161,10 +174,13 @@ Callbacks registered now but invoked later outside the originating async tree �
 on each invocation; arguments, `this` and the return value pass through.
 
 ```ts
+import { EventEmitter } from 'node:events'
+import logger from '@adonisjs/core/services/logger'
 import { Context } from '@adonis-agora/context'
 
-emitter.on('done', Context.bind(() => log(Context.traceId())))
-setTimeout(Context.bind(handler), 1000)
+const emitter = new EventEmitter()
+emitter.on('done', Context.bind(() => logger.info({ traceId: Context.traceId() }, 'done')))
+setTimeout(Context.bind(() => logger.info({ traceId: Context.traceId() }, 'tick')), 1000)
 ```
 
 Source: `docs/cross-process.mdx` (bind()), `packages/core/src/context.ts` (`Context.bind`).
@@ -187,8 +203,12 @@ This hook is exactly how `@adonis-agora/durable` ships the trace id across its
 transport:
 
 ```ts
-const engine = new WorkflowEngine({
-  store,
+// config/durable.ts
+import { defineConfig } from '@adonis-agora/durable'
+import { Context, toTraceparent } from '@adonis-agora/context'
+
+export default defineConfig({
+  // ...store, transport
   traceparent: () => {
     const traceId = Context.traceId()
     if (!traceId) return undefined
@@ -210,7 +230,11 @@ even when that handler runs in another process or language.
 
 ```ts
 // app/steps/charge_card.ts — NO deserialize here; durable already restored the context.
-export const chargeCard = defineStep('payments:charge-card', async (input) => {
+import { defineStep } from '@adonis-agora/durable'
+import { Context } from '@adonis-agora/context'
+import { charge } from '#services/billing'
+
+export const chargeCard = defineStep('payments:charge-card', async (input: { amountCents: number }) => {
   Context.userRef()  // the user who started the workflow
   Context.tenantId() // their tenant
   Context.traceId()  // the originating request's trace id
@@ -231,23 +255,41 @@ Wrong:
 
 ```ts
 // Job enqueued Monday; user deactivated Tuesday. Handler trusts the carrier:
-await Context.deserialize(payload.__ctx, async () => {
-  const user = await User.findOrFail(Context.userRef()!.id) // may now be inactive
-  await actAs(user) // acts with authority that no longer exists
-})
+import { Job } from '@adonisjs/queue'
+import { Context, type ContextCarrier } from '@adonis-agora/context'
+import User from '#models/user'
+import { actAs } from '#services/impersonation'
+
+export default class ExportJob extends Job<{ __ctx?: ContextCarrier }> {
+  async execute() {
+    await Context.deserialize(this.payload.__ctx, async () => {
+      const user = await User.findOrFail(Context.userRef()!.id) // may now be inactive
+      await actAs(user) // acts with authority that no longer exists
+    })
+  }
+}
 ```
 
 Correct:
 
 ```ts
-await Context.deserialize(payload.__ctx, async () => {
-  // Re-resolve authority from the stable ref if the CURRENT state matters;
-  // the snapshot is deliberately the history of the dispatch moment.
-  const ref = Context.userRef()
-  const current = await User.findOrFail(ref!.id)
-  if (!current.isActive) throw new Error('principal deactivated since dispatch')
-  await actAs(current)
-})
+import { Job } from '@adonisjs/queue'
+import { Context, type ContextCarrier } from '@adonis-agora/context'
+import User from '#models/user'
+import { actAs } from '#services/impersonation'
+
+export default class ExportJob extends Job<{ __ctx?: ContextCarrier }> {
+  async execute() {
+    await Context.deserialize(this.payload.__ctx, async () => {
+      // Re-resolve authority from the stable ref if the CURRENT state matters;
+      // the snapshot is deliberately the history of the dispatch moment.
+      const ref = Context.userRef()
+      const current = await User.findOrFail(ref!.id)
+      if (!current.isActive) throw new Error('principal deactivated since dispatch')
+      await actAs(current)
+    })
+  }
+}
 ```
 
 Mechanism: `serialize()` captures user/tenant at call time (dispatch time); a
@@ -260,16 +302,34 @@ with dispatched authority unless they explicitly re-resolve. Source:
 Wrong:
 
 ```ts
-// worker.ts — enterWith pollutes every subsequent job this process handles
-app.jobs.on('received', (job) => Context.enterWith(job.__ctx as ContextStore))
+// app/jobs/send_invoice_job.ts — enterWith pollutes every subsequent job this worker runs
+import { Job } from '@adonisjs/queue'
+import { Context, type ContextCarrier, type ContextStore } from '@adonis-agora/context'
+
+export default class SendInvoiceJob extends Job<{ invoiceId: number; __ctx?: ContextCarrier }> {
+  async execute() {
+    Context.enterWith(this.payload.__ctx as ContextStore)
+    await this.send()
+  }
+
+  private async send() {}
+}
 ```
 
 Correct:
 
 ```ts
 // Scope the restored store to exactly one job's callback:
-job.handle = (payload: JobPayload & { __ctx?: ContextCarrier }) =>
-  Context.deserialize(payload.__ctx, () => realHandle(payload))
+import { Job } from '@adonisjs/queue'
+import { Context, type ContextCarrier } from '@adonis-agora/context'
+
+export default class SendInvoiceJob extends Job<{ invoiceId: number; __ctx?: ContextCarrier }> {
+  async execute() {
+    await Context.deserialize(this.payload.__ctx, () => this.send())
+  }
+
+  private async send() {}
+}
 ```
 
 Mechanism: `deserialize(carrier, fn)` runs `fn` inside the rebuilt store and
@@ -284,17 +344,35 @@ It also tolerates a nullish carrier instead of throwing. Source:
 Wrong:
 
 ```ts
-const carrier = job.payload.__ctx ?? { traceId: undefined as never }
-if (!carrier.traceId) throw new Error('no trace id on carrier') // unnecessary crash
-await Context.deserialize(carrier, () => work())
+import { Job } from '@adonisjs/queue'
+import { Context, type ContextCarrier } from '@adonis-agora/context'
+
+export default class SendInvoiceJob extends Job<{ invoiceId: number; __ctx?: ContextCarrier }> {
+  async execute() {
+    const carrier = this.payload.__ctx ?? { traceId: undefined as never }
+    if (!carrier.traceId) throw new Error('no trace id on carrier') // unnecessary crash
+    await Context.deserialize(carrier, () => this.send())
+  }
+
+  private async send() {}
+}
 ```
 
 Correct:
 
 ```ts
-// Pass it straight through: no carrier → runs with no store; carrier without a
-// traceId → a fresh randomTraceId() is synthesized (with a one-time warn).
-await Context.deserialize(job.payload.__ctx, () => work())
+import { Job } from '@adonisjs/queue'
+import { Context, type ContextCarrier } from '@adonis-agora/context'
+
+export default class SendInvoiceJob extends Job<{ invoiceId: number; __ctx?: ContextCarrier }> {
+  async execute() {
+    // Pass it straight through: no carrier → runs with no store; carrier without a
+    // traceId → a fresh randomTraceId() is synthesized (with a one-time warn).
+    await Context.deserialize(this.payload.__ctx, () => this.send())
+  }
+
+  private async send() {}
+}
 ```
 
 Mechanism: `deserialize` protects the `ContextStore.traceId: string` invariant —
@@ -309,7 +387,10 @@ Wrong:
 
 ```ts
 // types/context.ts augmented `locale?: string`; config never opted it in.
-queue.dispatch('greet', { __ctx: Context.serialize() })
+import GreetJob from '#jobs/greet_job'
+import { Context } from '@adonis-agora/context'
+
+await GreetJob.dispatch({ __ctx: Context.serialize() })
 // worker: Context.get()?.locale → undefined even though it was set before dispatch
 ```
 
@@ -317,6 +398,8 @@ Correct:
 
 ```ts
 // config/context.ts — list the field explicitly (or override serialize entirely):
+import { defineConfig } from '@adonis-agora/context'
+
 export default defineConfig({
   carrier: ['traceId', 'tenantId', 'userRef', 'locale'],
 })
@@ -335,17 +418,24 @@ until it joins the `carrier` list or a full `serialize` override. Source:
 Wrong:
 
 ```ts
-const header = `tenantId=${tenantId},userRef=${type}:${id}` // breaks on special chars
+import type { UserRef } from '@adonis-agora/context'
+
+function baggageFor(tenantId: string, { type, id }: UserRef) {
+  return `tenantId=${tenantId},userRef=${type}:${id}` // breaks on special chars
+}
 ```
 
 Correct:
 
 ```ts
-import { encodeBaggage, encodeUserRef } from '@adonis-agora/context'
-const header = encodeBaggage({
-  tenantId,
-  userRef: encodeUserRef({ type, id }), // percent-encoded per W3C rules
-})
+import { encodeBaggage, encodeUserRef, type UserRef } from '@adonis-agora/context'
+
+function baggageFor(tenantId: string, { type, id }: UserRef) {
+  return encodeBaggage({
+    tenantId,
+    userRef: encodeUserRef({ type, id }), // percent-encoded per W3C rules
+  })
+}
 ```
 
 Mechanism: baggage values must be percent-encoded; raw concatenation produces

@@ -28,6 +28,8 @@
     "check:agora-doctor": "pnpm --filter @adonis-agora/context check:agora-doctor"
   },
   "devDependencies": {
+    "@adonisjs/auth": "10.1.1",
+    "@adonisjs/queue": "0.7.0",
     "@arethetypeswrong/cli": "0.18.5",
     "@biomejs/biome": "2.6.9",
     "@changesets/changelog-github": "1.0.1",

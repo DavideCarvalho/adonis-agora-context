@@ -12,3 +12,10 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@types/node@26.5.0'
   - unplugin-swc@1.6.0
+
+# Skill examples are typechecked by `intent validate` from the repo root, so a package they import
+# must resolve from the root node_modules. @adonisjs/core is a devDependency of packages/core, hoisted
+# so the examples load `HttpContext`, `NextFn` and `BaseCommand` against the copy the library uses.
+# Install-time only: no published package changes.
+publicHoistPattern:
+  - "@adonisjs/core"

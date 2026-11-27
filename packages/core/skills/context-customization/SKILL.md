@@ -46,9 +46,23 @@ and 4 live entirely in `config/context.ts`, validated by `defineConfig`.
 
 ## Setup
 
+Level 1 declares the custom fields the examples below populate:
+
+```ts
+// types/context.ts
+import '@adonis-agora/context'
+
+declare module '@adonis-agora/context' {
+  interface ContextStore {
+    region?: string
+    displayName?: string
+    locale?: string
+  }
+}
+```
+
 ```ts
 // config/context.ts — one file holds population AND cross-boundary options
-import type { HttpContext } from '@adonisjs/core/http'
 import { defineConfig } from '@adonis-agora/context'
 
 export default defineConfig({
@@ -68,6 +82,9 @@ partial to merge **or** mutate the store in place; a throwing enricher is
 isolated from the rest.
 
 ```ts
+import { defineConfig } from '@adonis-agora/context'
+import { regionForTenant } from '#services/regions'
+
 export default defineConfig({
   enrichers: [
     // Return a partial → merged into the store:
@@ -86,20 +103,26 @@ whatever it hands over. Narrow before reading headers:
 
 ```ts
 import type { HttpContext } from '@adonisjs/core/http'
+import { defineConfig } from '@adonis-agora/context'
 
-enrichers: [
-  (store, req) => {
-    const ctx = req as HttpContext | undefined
-    const region = ctx?.request.header('x-region')
-    if (region) store.region = region
-  },
-]
+export default defineConfig({
+  enrichers: [
+    (store, req) => {
+      const ctx = req as HttpContext | undefined
+      const region = ctx?.request.header('x-region')
+      if (region) store.region = region
+    },
+  ],
+})
 ```
 
 For expensive values compute on first access instead — memoized per store per
 key:
 
 ```ts
+import { Context } from '@adonis-agora/context'
+import { lookupName } from '#services/directory'
+
 const name = Context.lazy('displayName', (s) => lookupName(s.userRef))
 ```
 
@@ -107,10 +130,15 @@ Outside HTTP, enrichers do not run by themselves — call them after entering th
 store (`runEnrichers` is a safe no-op with no context/enrichers):
 
 ```ts
-await Context.run({ traceId: randomTraceId(), tenantId: 'acme' }, async () => {
-  Context.runEnrichers(job) // forwarded as the `req` argument
-  await rebuildReport()
-})
+import { Context, randomTraceId } from '@adonis-agora/context'
+import { rebuildReport } from '#services/reports'
+
+export async function onJob(job: { name: string; data: unknown }) {
+  await Context.run({ traceId: randomTraceId(), tenantId: 'acme' }, async () => {
+    Context.runEnrichers(job) // forwarded as the `req` argument
+    await rebuildReport()
+  })
+}
 ```
 
 Source: `docs/customization.mdx` (Level 2 + running enrichers outside HTTP),
@@ -121,6 +149,8 @@ Source: `docs/customization.mdx` (Level 2 + running enrichers outside HTTP),
 List extra fields on the default carrier, or take both directions wholesale:
 
 ```ts
+import { defineConfig } from '@adonis-agora/context'
+
 export default defineConfig({
   carrier: ['traceId', 'tenantId', 'userRef', 'locale'], // opt a custom field in
 
@@ -143,6 +173,8 @@ Baggage propagation is tuned independently — namespace a key or drop a field
 (`tenantKind` rides next to `tenantId` when tenancy is enabled):
 
 ```ts
+import { defineConfig } from '@adonis-agora/context'
+
 export default defineConfig({
   baggage: {
     tenantId: 'acme.tenant', // namespaced baggage key
@@ -205,10 +237,11 @@ callback (the primitive durable reads), and `CONTEXT_TENANCY`
 contract so libs read the tenant without importing this package:
 
 ```ts
-import { contextWriter, contextScope } from '@adonis-agora/context'
+import { Context, contextScope, contextWriter, randomTraceId } from '@adonis-agora/context'
 
 contextWriter.set({ userRef: { type: 'user', id: 42 }, tenantId: 'acme' }) // no-op w/o context
-const result = contextScope(snapshot, () => doTheWork()) // runs INSIDE the snapshot's store
+const snapshot = { traceId: randomTraceId(), tenantId: 'acme' } // e.g. a durable task's context
+const tenantId = contextScope(snapshot, () => Context.tenantId()) // 'acme': runs INSIDE the snapshot's store
 ```
 
 Source: `docs/customization.mdx` (Level 5 + writing context from sibling libraries),
@@ -221,6 +254,8 @@ Source: `docs/customization.mdx` (Level 5 + writing context from sibling librari
 Wrong:
 
 ```ts
+import { CONTEXT_ACCESSOR, type ContextAccessor, type TenantFilterOptions, Context } from '@adonis-agora/context'
+
 const accessor: ContextAccessor = {
   traceId: () => Context.traceId(),
   tenantId: () => Context.tenantId(),
@@ -238,7 +273,9 @@ const accessor: ContextAccessor = {
 Correct:
 
 ```ts
-get: ((key?: string) => {
+import { type ContextAccessor, Context } from '@adonis-agora/context'
+
+const get = ((key?: string) => {
   const store = Context.get()
   return key === undefined ? store : store?.[key as keyof typeof store]
 }) as ContextAccessor['get']
@@ -256,14 +293,21 @@ consumer reading a field gets garbage (the documented incident: authz resolved
 
 Wrong:
 
-```ts
-// compiles, runs… and changes nothing
-await app.container.swap(CONTEXT_ACCESSOR, () => myAccessor)
+```ts expect-error="TS2345"
+// TS2345: swap() only takes classes; forced through with a cast it runs… and changes nothing
+import app from '@adonisjs/core/services/app'
+import { CONTEXT_ACCESSOR, contextAccessor } from '@adonis-agora/context'
+
+const myAccessor = { ...contextAccessor, userRef: () => undefined } // your accessor
+app.container.swap(CONTEXT_ACCESSOR, () => myAccessor)
 ```
 
 Correct:
 
 ```ts
+import { CONTEXT_ACCESSOR, type ContextAccessor, contextAccessor } from '@adonis-agora/context'
+
+const myAccessor: ContextAccessor = { ...contextAccessor, userRef: () => undefined } // your accessor
 ;(globalThis as Record<symbol, unknown>)[CONTEXT_ACCESSOR] = myAccessor
 ```
 
@@ -278,6 +322,8 @@ slot structurally at call time. Source: `docs/customization.mdx`
 Wrong:
 
 ```ts
+import { Context } from '@adonis-agora/context'
+
 Context.configure({ carrier: ['traceId', 'tenantId', 'userRef'] })
 // later, "just adding" enrichers — silently drops nothing? No: replaces everything.
 Context.configure({ enrichers: [(s) => { s.region = 'eu' }] })
@@ -287,6 +333,8 @@ Context.configure({ enrichers: [(s) => { s.region = 'eu' }] })
 Correct:
 
 ```ts
+import { Context } from '@adonis-agora/context'
+
 Context.configure({
   carrier: ['traceId', 'tenantId', 'userRef'],
   enrichers: [(s) => { s.region = 'eu' }],
@@ -307,24 +355,33 @@ app's `serialize` with another's `deserialize`. A second differing call emits a
 
 Wrong:
 
-```ts
-enrichers: [
-  (store, req) => ({ region: req.request.header('x-region') }),
-  // TS18046: 'req' is of type 'unknown'
-]
+```ts expect-error="TS18046"
+import { defineConfig } from '@adonis-agora/context'
+
+export default defineConfig({
+  enrichers: [
+    (store, req) => ({ region: req.request.header('x-region') }),
+    // TS18046: 'req' is of type 'unknown'
+  ],
+})
 ```
 
 Correct:
 
 ```ts
-enrichers: [
-  (store, req) => {
-    const ctx = req as HttpContext | undefined
-    return ctx?.request.header('x-region')
-      ? { region: (req as HttpContext).request.header('x-region')! }
-      : undefined
-  },
-]
+import type { HttpContext } from '@adonisjs/core/http'
+import { defineConfig } from '@adonis-agora/context'
+
+export default defineConfig({
+  enrichers: [
+    (store, req) => {
+      const ctx = req as HttpContext | undefined
+      return ctx?.request.header('x-region')
+        ? { region: (req as HttpContext).request.header('x-region')! }
+        : undefined
+    },
+  ],
+})
 ```
 
 Mechanism: enrichers run on both sides of the HTTP boundary — the middleware
@@ -351,6 +408,8 @@ Correct:
 
 ```ts
 // Populate it (Level 2) and opt it into the carrier (Level 4):
+import { defineConfig } from '@adonis-agora/context'
+
 export default defineConfig({
   initialize: (ctx) => ({ locale: ctx.request.header('accept-language') }),
   carrier: ['traceId', 'tenantId', 'userRef', 'locale'],
