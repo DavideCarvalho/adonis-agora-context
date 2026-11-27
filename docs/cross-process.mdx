@@ -65,18 +65,13 @@ Here is the whole thing, end to end and copy-pasteable.
 **On dispatch**, snapshot the active context onto the job payload:
 
 ```ts title="app/services/invoice_service.ts"
-import queue from '@adonisjs/queue/services/main'
+import SendInvoiceJob from '#jobs/send_invoice_job'
 import { Context } from '@adonis-agora/context'
 
-interface InvoicePayload {
-  invoiceId: number
-  email: string
-}
-
 export default class InvoiceService {
-  async requestInvoice(payload: InvoicePayload) {
+  async requestInvoice(payload: { invoiceId: number; email: string }) {
     // Runs inside an HTTP request → there is an active context here.
-    await queue.dispatch('send-invoice', {
+    await SendInvoiceJob.dispatch({
       ...payload,
       __ctx: Context.serialize(), // snapshot who/which tenant/which trace onto the job
     })
@@ -84,24 +79,26 @@ export default class InvoiceService {
 }
 ```
 
-**In the job handler**, re-hydrate the carrier before running the real work:
+**In the job**, re-hydrate the carrier before running the real work:
 
 ```ts title="app/jobs/send_invoice_job.ts"
+import { Job } from '@adonisjs/queue'
 import { Context, type ContextCarrier } from '@adonis-agora/context'
 
-interface InvoicePayload {
+interface SendInvoicePayload {
   invoiceId: number
   email: string
+  __ctx?: ContextCarrier
 }
 
-export default class SendInvoiceJob {
+export default class SendInvoiceJob extends Job<SendInvoicePayload> {
   // The worker is a fresh process: no active context until we restore one.
-  async handle(payload: InvoicePayload & { __ctx?: ContextCarrier }) {
-    return Context.deserialize(payload.__ctx, () => this.send(payload))
+  async execute() {
+    return Context.deserialize(this.payload.__ctx, () => this.send(this.payload))
   }
 
   // Unchanged business logic — it reads context exactly as it would in a controller.
-  private async send(payload: InvoicePayload) {
+  private async send(payload: { invoiceId: number; email: string }) {
     // Context.userRef()  → the principal who enqueued the job
     // Context.tenantId() → their tenant
     // Context.traceId()  → ties this worker's logs back to the originating request
@@ -110,7 +107,7 @@ export default class SendInvoiceJob {
 }
 ```
 
-That's the entire integration: `Context.serialize()` on the producer, `Context.deserialize(payload.__ctx, …)` on the consumer. Inside `send(payload)` the principal, tenant and trace id are those of the **enqueuer** — your handler code does not change at all, it reads the context exactly as it would inside an HTTP request.
+That's the entire integration: `Context.serialize()` on the producer, `Context.deserialize(this.payload.__ctx, …)` on the consumer. Inside `send()` the principal, tenant and trace id are those of the **enqueuer** — your handler code does not change at all, it reads the context exactly as it would inside an HTTP request.
 
 <Callout type="info">
   The `__ctx` key is just a convention for "this is the serialized context" — name it whatever you like, as long as the dispatch and consume sides agree. If a job arrives without a carrier (an external producer, an older job), `Context.deserialize` still works: see the [trace-id safety net](#the-trace-id-safety-net) below.
