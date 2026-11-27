@@ -1,0 +1,53 @@
+---
+title: AI agent skills
+description: The agent skills @adonis-agora/context ships for coding agents (Claude Code, Cursor, Copilot, Codex) and how to load them with TanStack Intent.
+icon: Bot
+---
+
+`@adonis-agora/context` ships [Agent Skills](https://agentskills.io): short `SKILL.md` files that tell a
+coding agent how to use the library, the patterns to follow and the mistakes to avoid. They live
+inside the npm package (its `skills/` folder), so they always match the version you installed:
+upgrade the package and the skills come with it.
+
+## Skills in this package
+
+| Skill | Package | Load it when |
+| --- | --- | --- |
+| `context-basics` | `@adonis-agora/context` | installing and configuring the package, reading the current user, tenant or traceId in a service or Lucid hook, adding typed fields to ContextStore, scoping by tenant, or when Context.set() does nothing. |
+| `context-cross-process` | `@adonis-agora/context` | a queue worker, durable step or another service loses the current user/tenant/trace: serialize/deserialize carriers, W3C baggage, traceparent, or Context.bind() for timers and emitters. |
+| `context-customization` | `@adonis-agora/context` | deriving fields (enrichers, Context.lazy), changing what crosses the queue boundary (carrier, serialize, baggage), configuring a bare worker without the provider, or swapping the accessor other libraries read. |
+
+## Load them with TanStack Intent
+
+[TanStack Intent](https://github.com/TanStack/intent) finds the skills in your installed packages
+and tells your agent when to load them.
+
+```bash
+npm i -D @tanstack/intent    # pnpm add -D @tanstack/intent
+npx intent install
+```
+
+The first `intent install` runs in a terminal: it asks which packages' skills to allow (saved as
+`intent.skills` in your `package.json`) and writes a short skill-loading block into `AGENTS.md`
+(or into the `CLAUDE.md`, `.cursorrules` or `.github/copilot-instructions.md` that already carries
+it). To allow every Agora library without the prompt, for example in CI, add this to
+`package.json` first:
+
+```json
+{
+  "intent": { "skills": ["@adonis-agora/*"] }
+}
+```
+
+Then your agent, or you, can list and load them:
+
+```bash
+npx intent list
+npx intent load @adonis-agora/context#context-basics
+```
+
+`npx intent hooks install` adds hooks that remind Claude Code, Codex and Copilot to load a matching
+skill before editing. Without Intent, point your agent at
+`node_modules/@adonis-agora/context/skills/<skill>/SKILL.md`.
+
+See [AI agent skills](/docs/agent-skills) for every Agora library that ships skills.
