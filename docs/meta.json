@@ -12,6 +12,7 @@
     "database-per-tenant",
     "customization",
     "testing",
+    "agent-skills",
     "migrating-to-1-0"
   ]
 }
