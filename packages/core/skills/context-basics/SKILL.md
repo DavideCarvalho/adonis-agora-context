@@ -83,11 +83,12 @@ After auth, stamp the principal onto the store the middleware entered:
 // app/middleware/stamp_context_middleware.ts
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
+import type User from '#models/user'
 import { Context } from '@adonis-agora/context'
 
 export default class StampContextMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
-    const user = ctx.auth.user
+    const user: User | undefined = ctx.auth.user
     if (user) {
       Context.set('userRef', { type: 'user', id: user.id })
       Context.set('tenantId', user.tenantId)
@@ -95,6 +96,18 @@ export default class StampContextMiddleware {
     return next()
   }
 }
+```
+
+Register it on the router stack after `@adonisjs/auth`'s middleware, which sets `ctx.auth`:
+
+```ts
+// start/kernel.ts (excerpt)
+import router from '@adonisjs/core/services/router'
+
+router.use([
+  () => import('@adonisjs/auth/initialize_auth_middleware'),
+  () => import('#middleware/stamp_context_middleware'),
+])
 ```
 
 ## Core patterns
@@ -118,8 +131,11 @@ declare module '@adonis-agora/context' {
 ```
 
 ```ts
-Context.set('locale', 'pt-BR')        // ✓ typed
-Context.set('locale', 42)             // ✗ type error
+import { Context } from '@adonis-agora/context'
+
+Context.set('locale', 'pt-BR') // ✓ typed
+// @ts-expect-error ✗ locale is a string
+Context.set('locale', 42)
 ```
 
 Keep augmented fields serializable if they should ever cross a process boundary.
@@ -137,18 +153,19 @@ the context across an `await`.
 import { runWithContext } from '@adonis-agora/context/testing'
 import { Context } from '@adonis-agora/context'
 import { test } from '@japa/runner'
+import ReportService from '#services/report_service'
 
-test('reads the tenant from context', () => {
+test('reads the tenant from context', ({ assert }) => {
   runWithContext({ tenantId: 't1', userRef: { type: 'user', id: 7 } }, () => {
     assert.equal(Context.tenantId(), 't1')
     assert.isDefined(Context.traceId()) // auto-filled
   })
 })
 
-test('keeps the context across an await', async () => {
+test('keeps the context across an await', async ({ assert }) => {
   const { enterContext } = await import('@adonis-agora/context/testing')
   enterContext({ tenantId: 't1' })
-  await service.doSomethingAsync()
+  await new ReportService().build()
   assert.equal(Context.tenantId(), 't1')
 })
 ```
@@ -212,6 +229,8 @@ Source: `docs/cross-process.mdx` (ace commands), `docs/getting-started.mdx` (Why
 
 ```ts
 // config/context.ts
+import { defineConfig } from '@adonis-agora/context'
+
 export default defineConfig({ tenancy: { enabled: true, kinds: ['organization'] } })
 ```
 
@@ -219,14 +238,17 @@ authkit publishes the active organization as the tenant. Without authkit, set it
 in a middleware after resolving (and checking membership of) the tenant:
 
 ```ts
-Context.setTenant({ id: clinic.id, kind: 'clinic' })            // also sets tenantId
-Context.setTenant({ id: unit.id, kind: 'unit', chain: [{ id: clinic.id, kind: 'clinic' }] })
-Context.setTenant({ id: account.id, kind: 'account' }, { family: 'account' })
+import { Context } from '@adonis-agora/context'
+import { rebuildSearchIndex, syncInvoices } from '#services/maintenance'
+
+Context.setTenant({ id: 'clinic-1', kind: 'clinic' })            // also sets tenantId
+Context.setTenant({ id: 'unit-7', kind: 'unit', chain: [{ id: 'clinic-1', kind: 'clinic' }] })
+Context.setTenant({ id: 'acct-9', kind: 'account' }, { family: 'account' })
 Context.tenant()            // { id, kind, source, slug?, role?, chain?, family? }
 Context.requireTenant()     // or throws E_TENANT_REQUIRED (403)
-await Context.withTenant({ id, kind: 'organization' }, () => work())  // ace, seeders, webhooks, tests
-await Context.allTenants(() => adminWork())                          // the only bypass
-Context.tenantFilter({ kinds })  // { mode: 'system' | 'all' | 'tenantless' | 'tenant', tenant?, chain? }
+await Context.withTenant({ id: 'acme', kind: 'organization' }, () => syncInvoices())  // ace, seeders, webhooks, tests
+await Context.allTenants(() => rebuildSearchIndex())                                  // the only bypass
+Context.tenantFilter({ kinds: ['organization'] })  // { mode: 'system' | 'all' | 'tenantless' | 'tenant', tenant?, chain? }
 ```
 
 With `tenancy.enabled`, `Context.serialize()` always includes the tenant.
@@ -243,11 +265,17 @@ Wrong:
 
 ```ts
 // app/middleware/before_server_stack.ts — runs BEFORE the context middleware
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+import type User from '#models/user'
+import { Context } from '@adonis-agora/context'
+
 export default class EarlyAuthMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
-    if (ctx.auth.user) {
+    const user: User | undefined = ctx.auth.user
+    if (user) {
       // silently dropped: the server-stack context middleware hasn't run yet
-      Context.set('userRef', { type: 'user', id: ctx.auth.user.id })
+      Context.set('userRef', { type: 'user', id: user.id })
     }
     return next()
   }
@@ -258,9 +286,14 @@ Correct:
 
 ```ts
 // Runs AFTER auth on the router stack — the store already exists.
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+import type User from '#models/user'
+import { Context } from '@adonis-agora/context'
+
 export default class StampContextMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
-    const user = ctx.auth.user
+    const user: User | undefined = ctx.auth.user
     if (user) {
       Context.set('userRef', { type: 'user', id: user.id })
       Context.set('tenantId', user.tenantId)
@@ -313,6 +346,8 @@ callout), `packages/core/src/context_middleware.ts`.
 Wrong:
 
 ```ts
+import { defineConfig } from '@adonis-agora/context'
+
 export default defineConfig({
   initialize: (ctx) => ({
     traceId: ctx.request.header('x-request-id') ?? '', // overwritten
@@ -324,6 +359,8 @@ export default defineConfig({
 Correct:
 
 ```ts
+import { defineConfig, randomTraceId } from '@adonis-agora/context'
+
 export default defineConfig({
   traceId: (ctx) => ctx.request.header('x-correlation-id') ?? randomTraceId(),
   initialize: (ctx) => ({ tenantId: ctx.subdomains?.tenant }),
@@ -340,6 +377,9 @@ always wins over anything `initialize()` returns. Source:
 Wrong:
 
 ```ts
+import logger from '@adonisjs/core/services/logger'
+import { Context } from '@adonis-agora/context'
+
 const traceId = Context.traceId()
 if (!traceId) throw new Error('context missing') // boot-time code now crashes
 logger.info({ traceId }, 'boot')
@@ -348,6 +388,9 @@ logger.info({ traceId }, 'boot')
 Correct:
 
 ```ts
+import logger from '@adonisjs/core/services/logger'
+import { Context, VERSION } from '@adonis-agora/context'
+
 // Accessors never throw; undefined simply means "outside any context" (e.g. app boot).
 logger.info({ traceId: Context.traceId(), context: VERSION }, 'boot')
 ```
@@ -362,6 +405,11 @@ Source: `docs/getting-started.mdx` Step 2, `packages/core/src/context.ts`.
 Wrong:
 
 ```ts
+import type User from '#models/user'
+import { Context } from '@adonis-agora/context'
+
+declare const user: User // the authenticated user, e.g. ctx.auth.getUserOrFail()
+
 // drags relations + a live DB connection onto the store; cannot cross boundaries
 Context.set('userRef', user as never)
 ```
@@ -369,6 +417,11 @@ Context.set('userRef', user as never)
 Correct:
 
 ```ts
+import User from '#models/user'
+import { Context } from '@adonis-agora/context'
+
+declare const user: User // the authenticated user, e.g. ctx.auth.getUserOrFail()
+
 Context.set('userRef', { type: 'user', id: user.id })   // stable, serializable ref
 const freshUser = await User.find(Context.userRef()!.id) // resolve when needed
 ```
