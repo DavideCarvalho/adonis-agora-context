@@ -15,7 +15,7 @@ description: >-
 metadata:
   type: core
   library: "@adonis-agora/context"
-  library_version: "0.6.0"
+  library_version: "1.0.0"
   framework: adonisjs
 license: MIT
 sources:
