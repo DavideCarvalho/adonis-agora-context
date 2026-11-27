@@ -123,33 +123,37 @@ import { Context } from '@adonis-agora/context'
 import { serviceTokens, verifyServiceToken } from '#services/service_tokens'
 import { doTheWork, handle, type Message } from '#services/work'
 
-export async function inbound({ request }: HttpContext) {
-  // Build a baggage header from the active context ('tenantId=t1,userRef=user%3A42',
-  // plus 'tenantKind=<kind>' when tenancy is enabled and the kind is known).
-  const header = Context.toBaggage()
+// Build a baggage header from the active context ('tenantId=t1,userRef=user%3A42',
+// plus 'tenantKind=<kind>' when tenancy is enabled and the kind is known).
+export function outboundBaggage() {
+  return Context.toBaggage()
+}
 
+export async function inbound({ request }: HttpContext) {
   // Re-hydrate inside an inbound baggage header. Baggage has no trace id, so it
   // is seeded from `traceparent` when supplied, else a fresh random id.
   // Identity (tenantId, tenantKind, userRef) in incoming baggage is DROPPED unless
   // the call opts in: baggage is unauthenticated, any client can forge it.
-  Context.fromBaggage(request.header('baggage'), () => doTheWork(), {
+  return Context.fromBaggage(request.header('baggage'), () => doTheWork(), {
     traceparent: request.header('traceparent'),
     // Verify: return true, false, or your own verified { tenantId, userRef }.
     trust: () => verifyServiceToken(request.header('authorization')) !== undefined,
   })
+}
 
+export async function inboundVerified({ request }: HttpContext) {
   // Async verifier (fetch a key, look up a token)? Use fromBaggageVerified, which
   // returns a Promise. An async `trust` on the sync fromBaggage is a type error and
   // throws at runtime. A verifier that throws/rejects fails closed on both paths:
   // identity dropped, fn still runs, error console.warn'ed. Return false to reject.
-  await Context.fromBaggageVerified(request.header('baggage'), () => doTheWork(), {
+  return Context.fromBaggageVerified(request.header('baggage'), () => doTheWork(), {
     trust: async () => (await serviceTokens.verify(request.header('authorization'))) !== undefined,
   })
 }
 
 // Or, only on a hop you control end to end:
 export function onMessage(message: Message) {
-  Context.fromBaggage(message.headers.baggage, () => handle(message), { trustIdentity: true })
+  return Context.fromBaggage(message.headers.baggage, () => handle(message), { trustIdentity: true })
 }
 // `tenancy.trustBaggage: true` accepts the tenant (never the user) app-wide, for
 // apps behind a gateway that strips client baggage.
